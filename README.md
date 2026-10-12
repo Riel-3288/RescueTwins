@@ -1,6 +1,5 @@
 # RescueTwins
 Estimted Hackthon#2
-# RescueTwin
 
 RescueTwin is an IoT and digital-twin project for emergency rescue scenarios.
 
