@@ -27,6 +27,26 @@ robot simulations, and a digital-twin web application.
 - Physical ESP32 sensor uploads and multi-device network integration are pending.
 - MN-CSE, Mobius IN-CSE, MQTT, and the digital-twin web application are pending.
 
+## Folder Ownership
+
+| Directory | Owner | Contents |
+|---|---|---|
+| `firmware/` | Sariel | ESP32 sensor node code|
+| `simulation/` | Sariel | 2D grid swarm simulation, live + offline run modes, evaluation |
+| `simulation/onem2m_adapter/` | Zihan | Agent AE adapter (register, post, notifications over HTTP) |
+| `simulation/results/` | Sariel | Evaluation CSVs and trajectory logs (optional) |
+| `mec-app/swarm/` | Sariel | Edge app logic: pheromone map, evaporation, task bidding, sanity checks |
+| `mec-app/deploy/` | Selina | MEC Sandbox / k8s deployment files, MEC-IPE location, MEC 021 |
+| `cse-config/` | Zihan | ACME / Mobius configs for MN-CSE A, MN-CSE B, IN-CSE; ACPs |
+| `twin/` | Zihan | Digital twin web app |
+| `script/` | Zihan | Local test and resource-initialisation scripts, plot scripts |
+| `docs/` | Everyone | Specs, architecture diagrams, article drafts |
+| `README.md` | Selina | Build + deploy guide + everyone adds their section|
+
+## Team Rules
+
+- Edit only your own folders; ask the owner before changing theirs.
+
 ## Start the Local ACME Environment
 
 Open a PowerShell terminal in the project root directory and run:
