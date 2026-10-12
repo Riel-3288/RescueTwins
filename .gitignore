@@ -1,0 +1,27 @@
+# Python virtual environments and cache
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local ACME configuration, secrets and runtime database
+acme-local/
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+secrets.h
+secrets.cpp
+*.local.ini
+
+# Logs
+*.log
+
+# Editor and operating system files
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+acme-zone-a/
