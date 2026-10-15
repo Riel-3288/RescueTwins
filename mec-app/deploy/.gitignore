@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.sqlite*
+runtime/
+certs/
+config.local.json
+*.csv
+!tests/fixtures/*.csv
+config.*.local.json
+*.key
+*.pem
+*.token

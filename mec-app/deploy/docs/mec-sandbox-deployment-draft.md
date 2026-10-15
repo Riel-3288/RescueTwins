@@ -1,0 +1,15 @@
+# MEC, Sandbox and Deployment — article draft
+
+RescueTwin separates sensor transport, oneM2M storage and MEC context acquisition. ESP32 nodes publish the agreed telemetry record over MQTT QoS 1. A bridge validates the topic identity, sensor type, unit and timestamp, persists accepted records to a durable outbox, and creates a oneM2M contentInstance at the assigned zone MN-CSE. Stable contentInstance names support safe retries after uncertain delivery. An alternative native oneM2M MQTT binding client is included for interoperability experiments.
+
+The intended edge architecture places MN-CSE A and MN-CSE B on separate MEC hosts. This is consistent with the co-location concepts discussed in [TR-0077 deployment options](https://specifications.onem2m.org/tr/tr-0077/latest/5.1/). The deployment templates express zone-specific host selection and persistent storage. Actual host placement and service availability must be confirmed in the organizer-provided environment.
+
+The synthetic factory scenario covers 100 by 60 metres and is divided at x=50 metres. Ten simulated UE tracks cross the boundary. Selected UE addresses are explicitly mapped to RescueTwin agents. The MEC-IPE consumes MEC013 Location and MEC012 Radio Network Information and exposes their responses as oneM2M records. It also processes oneM2M request records, queries the selected MEC service, and publishes correlated response records. This demonstrates bidirectional application interworking and a non-location MEC service.
+
+Handover in this prototype is implemented at the application layer. A boundary buffer and two consecutive fresh position samples reduce oscillation. The IPE prepares the target agent AE and position container before recording the new serving zone. Historical resources remain on the source CSE. This does not claim MEC021 context transfer or complete subscription migration; the distinction follows the continuity issues discussed in [TR-0077 handover](https://specifications.onem2m.org/tr/tr-0077/latest/7.2/).
+
+The deployment transport uses server-verified HTTPS for CSE access and mutual TLS for MQTT device connections. Each MQTT node receives a distinct certificate, and the broker ACL restricts publishing to its assigned device and zone. CSE authentication and oneM2M access-control policies are separate controls.
+
+Evaluation tools compare identical contentInstance creation and read-back operations along a direct MN-CSE path and, after Mcc registration, an IN-CSE transit path to that same MN-CSE. The observed interval is a storage round-trip. The final hazard-alert evaluation must additionally instrument the sensor observation, edge decision and agent reroute stages. No performance improvement percentage is claimed from local storage tests.
+
+Local tests use real MQTT and ACME CSE implementations, while MEC API inputs are supplied by a contract-compatible test server. Public Sandbox API tests, shared-host deployment, native MEC021 transfer and ACME–Mobius interoperability require further evidence before the final article describes them as demonstrated.
