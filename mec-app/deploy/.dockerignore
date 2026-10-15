@@ -1,0 +1,16 @@
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+runtime/
+certs/
+config.local.json
+config.*.local.json
+*.sqlite*
+*.key
+*.pem
+*.token
+*.log
+.env
+.env.*
+.git/
