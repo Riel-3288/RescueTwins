@@ -7,6 +7,9 @@ import ssl
 import threading
 import time
 import uuid
+import queue
+from collections import deque
+from contextlib import contextmanager
 
 import paho.mqtt.client as mqtt
 import requests
@@ -15,6 +18,30 @@ from .core import Store, canonical, validate_reading
 from .onem2m import Cse, CseError
 
 LOG = logging.getLogger(__name__)
+
+
+@contextmanager
+def bridge_owner(path):
+    """An OS lock prevents two bridge processes from replaying the same outbox."""
+    handle = open(str(path) + '.lock', 'a+b')
+    try:
+        handle.seek(0)
+        if os.name == 'nt':
+            import msvcrt
+            if not handle.read(1):
+                handle.write(b'0'); handle.flush()
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as exc:
+        handle.close()
+        raise RuntimeError('Another bridge already owns this outbox. Stop the earlier demo first.') from exc
+    try:
+        yield
+    finally:
+        handle.close()
 
 
 def native_cin(config, originator, cse_id, target, reading):
@@ -102,10 +129,15 @@ class Bridge:
         self.stop = threading.Event()
         self.ready = threading.Event()
         self.client = make_client(config["mqtt"], config["mqtt"].get("client_id", "rescuetwin-bridge"), True)
+        self.client.max_queued_messages_set(4096)
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
         self.client.on_subscribe = lambda *args: self.ready.set()
         self.clients = {}
+        self.incoming = queue.Queue(maxsize=2048)
+        self.samples = {'accepted': deque(maxlen=20000), 'delivered': deque(maxlen=20000)}
+        self.metrics_lock = threading.Lock()
+        self.cached_stats = {'counts': {}, 'oldest_pending_s': 0, 'last_error': '', 'input_per_s': 0, 'stored_per_s': 0}
 
     def on_connect(self, client, userdata, flags, reason, properties):
         if reason.is_failure:
@@ -119,7 +151,8 @@ class Bridge:
                 raise ValueError("retained or oversized telemetry is not accepted")
             reading = json.loads(msg.payload.decode("utf-8"))
             validate_reading(reading, self.config["devices"], msg.topic)
-            self.store.enqueue(reading)
+            self.incoming.put_nowait((reading, msg.mid, msg.qos))
+            return  # The batch writer acknowledges only after a FULL SQLite commit.
         except (ValueError, TypeError, KeyError, UnicodeDecodeError):
             # Malformed messages are poison messages; acknowledge and count them.
             count = self.store.get("rejected", 0)
@@ -132,33 +165,109 @@ class Bridge:
         if msg.qos:
             client.ack(msg.mid, msg.qos)
 
-    def drain_one(self):
-        item = self.store.pending()
-        if item is None:
-            return False
-        key, reading, attempts = item
-        zone, device = reading["zone_id"], reading["device_id"]
-        client_key = (zone, device)
-        if client_key not in self.clients:
-            self.clients[client_key] = Cse(self.config["cse"][zone], self.config["devices"][device]["originator"])
-        try:
-            self.clients[client_key].cin(f"/{device}/{reading['sensor_type']}", reading, key)
-            self.store.delivered(key)
-            self.client.publish(f"rescuetwin-ack/{zone}/{device}", canonical({"record_id": key, "status": "stored"}), qos=1)
-        except (requests.RequestException, CseError, ValueError) as exc:
-            permanent = isinstance(exc, ValueError) or (isinstance(exc, CseError) and exc.status in (400, 401, 403))
-            self.store.failed(key, attempts + 1, str(exc), permanent)
-            LOG.warning("CSE delivery pending/quarantined: %s", exc)
-        return True
+    def ingest(self):
+        while not self.stop.is_set() or not self.incoming.empty():
+            batch = []
+            try:
+                batch.append(self.incoming.get(timeout=0.1))
+            except queue.Empty:
+                continue
+            deadline = time.monotonic() + 0.025
+            while len(batch) < 64 and time.monotonic() < deadline:
+                try:
+                    batch.append(self.incoming.get(timeout=max(.001, deadline-time.monotonic())))
+                except queue.Empty:
+                    break
+            try:
+                self.store.enqueue_many([r for r, _, _ in batch])
+                with self.metrics_lock:
+                    self.samples['accepted'].extend([time.monotonic()] * len(batch))
+                for _, mid, qos in batch:
+                    if qos:
+                        self.client.ack(mid, qos)
+            except Exception:
+                LOG.exception('Cannot commit ingestion batch; MQTT messages remain unacknowledged')
+                self.client.disconnect()
+                self.stop.set()
 
-    def run(self):
-        cfg = self.config["mqtt"]
-        self.client.connect_async(cfg["host"], cfg["port"], 30)
-        self.client.loop_start()
+    def stats(self):
+        with self.metrics_lock:
+            return dict(self.cached_stats, counts=dict(self.cached_stats['counts']))
+
+    def monitor(self):
+        while not self.stop.is_set():
+            stats = self.store.queue_stats()
+            now = time.monotonic()
+            with self.metrics_lock:
+                for name, values in self.samples.items():
+                    while values and values[0] < now - 10:
+                        values.popleft()
+                    stats['input_per_s' if name == 'accepted' else 'stored_per_s'] = round(len(values)/10, 2)
+                stats['ingest_buffer'] = self.incoming.qsize()
+                self.cached_stats = stats
+            self.stop.wait(2)
+
+    def deliver_batch(self, zone, limit=16):
+        batch = self.store.claim_batch(zone, limit)
+        outcomes, acks = [], []
+        for key, reading, attempts in batch:
+            if self.stop.is_set():
+                break
+            device = reading.get('device_id', 'rescue-control')
+            client_key = (zone, device)
+            if client_key not in self.clients:
+                originator = 'CRescueControl' if reading.get('_integration_event') else self.config['devices'][device]['originator']
+                self.clients[client_key] = Cse(self.config['cse'][zone], originator)
+            try:
+                if reading.get('_integration_event'):
+                    self.clients[client_key].cin('/rescue-control/' + reading['container'], reading['value'], key)
+                else:
+                    self.clients[client_key].cin(f"/{device}/{reading['sensor_type']}", reading, key)
+                outcomes.append((key, 0, None, False))
+                acks.append((key, device))
+            except (requests.RequestException, CseError, ValueError) as exc:
+                permanent = isinstance(exc, ValueError) or (isinstance(exc, CseError) and exc.status in (400, 401, 403))
+                outcomes.append((key, attempts + 1, str(exc), permanent))
+                LOG.warning('CSE %s delivery pending/quarantined: %s', zone, exc)
+        if outcomes:
+            self.store.finish_batch(outcomes)
+            with self.metrics_lock:
+                self.samples['delivered'].extend([time.monotonic()] * len(acks))
+            for key, device in acks:
+                self.client.publish(f'rescuetwin-ack/{zone}/{device}', canonical({'record_id': key, 'status': 'stored'}), qos=1)
+        return bool(batch)
+
+    def deliver_zone(self, zone):
         try:
             while not self.stop.is_set():
-                if not self.drain_one():
-                    self.stop.wait(0.1)
-        finally:
-            self.client.disconnect()
-            self.client.loop_stop()
+                if not self.deliver_batch(zone):
+                    self.stop.wait(.05)
+        except Exception:
+            LOG.exception('CSE delivery worker failed')
+            self.stop.set()
+
+    def drain_one(self):
+        return self.deliver_batch('A', 1) or self.deliver_batch('B', 1)
+
+    def run(self):
+        with bridge_owner(self.store.path):
+            self.store.recover_processing()
+            cfg = self.config['mqtt']
+            workers = [threading.Thread(target=target, args=args, daemon=True)
+                       for target, args in [(self.ingest, ()), (self.monitor, ()),
+                                            (self.deliver_zone, ('A',)), (self.deliver_zone, ('B',))]]
+            for worker in workers:
+                worker.start()
+            self.client.connect_async(cfg['host'], cfg['port'], 30)
+            self.client.loop_start()
+            try:
+                self.stop.wait()
+            finally:
+                self.client.disconnect()
+                self.client.loop_stop()
+                self.stop.set()
+                for worker in workers:
+                    worker.join(20)
+                self.store.recover_processing()
+                for client in self.clients.values():
+                    client.session.close()

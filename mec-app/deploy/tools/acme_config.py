@@ -42,6 +42,9 @@ checkInterval=5
 [textui]
 startWithTUI=false
 
+[logging]
+enableFileLogging=true
+
 [http]
 address={'https' if tls else 'http'}://{host}:{port}
 enableManagementEndpoint=false

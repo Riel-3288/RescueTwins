@@ -88,6 +88,17 @@ def load_config(path):
     for name, device in cfg["devices"].items():
         if not NAME.fullmatch(name) or not device["originator"].startswith("C"):
             raise ValueError("invalid device registration mapping")
+    rescue = cfg.get('rescue', {})
+    for sensor, rule in rescue.get('thresholds', {}).items():
+        if sensor not in ('temperature','smoke_raw','co_raw'):
+            raise ValueError('unsupported rescue threshold sensor')
+        if (type(rule.get('trigger')) not in (int,float) or type(rule.get('clear')) not in (int,float)
+                or not all(math.isfinite(rule[k]) for k in ('trigger','clear')) or rule['clear'] >= rule['trigger']):
+            raise ValueError('rescue clear threshold must be below the trigger threshold')
+    for device, pos in rescue.get('sensor_positions', {}).items():
+        if device not in cfg['devices'] or any(type(pos.get(k)) not in (int,float) or not math.isfinite(pos[k])
+                                             or not 0 <= pos[k] < bound for k,bound in [('x_m',100),('y_m',60)]):
+            raise ValueError('rescue sensor position must map a registered device inside the factory')
     return cfg
 
 
@@ -95,6 +106,7 @@ class Store:
     """Durable outbox; QoS 1 is acknowledged only after the SQLite commit."""
 
     def __init__(self, path):
+        self.path = Path(path)
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(path, check_same_thread=False)
         self.lock = threading.RLock()
@@ -106,14 +118,65 @@ class Store:
               attempts INTEGER NOT NULL DEFAULT 0, due REAL NOT NULL DEFAULT 0,
               received REAL NOT NULL, delivered REAL, error TEXT);
             CREATE TABLE IF NOT EXISTS state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS outbox_status_received ON outbox(status,received);
         """)
+        columns = {r[1] for r in self.db.execute('PRAGMA table_info(outbox)')}
+        with self.db:
+            if 'zone' not in columns:
+                self.db.execute("ALTER TABLE outbox ADD COLUMN zone TEXT NOT NULL DEFAULT ''")
+                self.db.execute("UPDATE outbox SET zone=json_extract(body,'$.zone_id')")
+            if 'priority' not in columns:
+                self.db.execute('ALTER TABLE outbox ADD COLUMN priority INTEGER NOT NULL DEFAULT 0')
+            self.db.execute('CREATE INDEX IF NOT EXISTS outbox_delivery ON outbox(status,zone,priority DESC,received)')
+            self.db.execute('CREATE INDEX IF NOT EXISTS outbox_errors ON outbox(received DESC) WHERE error IS NOT NULL')
 
     def enqueue(self, reading):
-        key = digest(reading)
+        return self.enqueue_many([reading])[0]
+
+    def enqueue_many(self, readings):
+        rows = [(digest(r), canonical(r), time.time(), r['zone_id']) for r in readings]
         with self.lock, self.db:
-            self.db.execute("INSERT OR IGNORE INTO outbox(id,body,received) VALUES(?,?,?)",
-                            (key, canonical(reading), time.time()))
+            self.db.executemany('INSERT OR IGNORE INTO outbox(id,body,received,zone) VALUES(?,?,?,?)', rows)
+        return [r[0] for r in rows]
+
+    def enqueue_event(self, zone, container, value):
+        body = {'_integration_event': True, 'zone_id': zone, 'container': container, 'value': value}
+        key = digest(body)
+        with self.lock, self.db:
+            self.db.execute('INSERT OR IGNORE INTO outbox(id,body,received,zone,priority) VALUES(?,?,?,?,100)',
+                            (key, canonical(body), time.time(), zone))
         return key
+
+    def claim_batch(self, zone, limit=16):
+        with self.lock, self.db:
+            rows = self.db.execute("""UPDATE outbox SET status='processing' WHERE id IN
+              (SELECT id FROM outbox WHERE status='pending' AND zone=? AND due<=?
+               ORDER BY priority DESC,received LIMIT ?) AND status='pending'
+              RETURNING id,body,attempts,received,priority""", (zone, time.time(), limit)).fetchall()
+        return [(r[0], json.loads(r[1]), r[2]) for r in sorted(rows, key=lambda r: (-r[4], r[3]))]
+
+    def finish_batch(self, outcomes):
+        with self.lock, self.db:
+            for key, attempts, error, permanent in outcomes:
+                if error is None:
+                    self.db.execute("UPDATE outbox SET status='delivered',delivered=?,error=NULL WHERE id=?", (time.time(), key))
+                else:
+                    self.db.execute("UPDATE outbox SET status=?,attempts=?,due=?,error=? WHERE id=?",
+                                    ('quarantined' if permanent else 'pending', attempts,
+                                     time.time() + min(60, 2 ** min(attempts, 6)), error[:300], key))
+
+    def recover_processing(self):
+        # Called only while this bridge owns the OS process lock; a crash may leave claims.
+        with self.lock, self.db:
+            self.db.execute("UPDATE outbox SET status='pending' WHERE status='processing'")
+
+    def queue_stats(self):
+        with self.lock:
+            counts = dict(self.db.execute('SELECT status,COUNT(*) FROM outbox GROUP BY status'))
+            oldest = self.db.execute("SELECT MIN(received) FROM outbox WHERE status IN ('pending','processing')").fetchone()[0]
+            last_error = self.db.execute("SELECT error FROM outbox WHERE error IS NOT NULL ORDER BY received DESC LIMIT 1").fetchone()
+        return {'counts': counts, 'oldest_pending_s': round(max(0, time.time()-oldest), 1) if oldest else 0,
+                'last_error': last_error[0] if last_error else ''}
 
     def pending(self):
         with self.lock:

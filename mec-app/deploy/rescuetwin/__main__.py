@@ -26,6 +26,8 @@ def provision(cfg):
                 Cse(endpoint, info["originator"]).ensure_ae(name, list(UNITS))
         if zone in ("A", "B"):
             Cse(endpoint, "CIpe").ensure_ae("mec-ipe", ["location", "rnis", "requests", "responses", "handover"])
+            if cfg.get('rescue', {}).get('enabled', False):
+                Cse(endpoint, 'CRescueControl').ensure_ae('rescue-control', ['events'])
         Cse(endpoint, "CBenchmark").ensure_ae("benchmark", ["samples"])
         print(f"Provisioned {zone}")
 
@@ -98,7 +100,8 @@ def main():
         if args.now:
             value["observed_at"] = utcnow()
         publish(cfg["mqtt"], value, cfg["devices"])
-        print("MQTT broker acknowledged publication; use CSE read-back to confirm storage.")
+        print(f"SUCCESS: published to {cfg['mqtt']['host']}:{cfg['mqtt']['port']} (broker acknowledged).")
+        print("MQTTX connects separately to this broker. CSE read-back confirms storage.")
     elif args.action == "bridge":
         Bridge(cfg).run()
     elif args.action == "native-publish":

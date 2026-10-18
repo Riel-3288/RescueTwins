@@ -33,8 +33,8 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-持续运行本地 broker 与三个演示 CSE 时，启动 Docker Desktop 的 Linux engine，再按
-[模块 README](../README.md) 的 Compose、provision、bridge、publish 顺序操作。
+首次运行本地演示，按 [Simulator + MQTTX 指南](simulator-mqttx-guide.md) 执行 start-demo.ps1，无需 Docker。
+使用容器或共享环境时，按[部署指南](deployment-guide.md)操作。
 新目录中的 `.gitignore` 和 `.dockerignore` 排除了虚拟环境、运行数据、私钥、tokens 和本地配置。
 
 ## 交给队友的接口

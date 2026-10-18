@@ -27,6 +27,7 @@ robot simulations, and a digital-twin web application.
 - Physical ESP32 sensor uploads and multi-device network integration are pending.
 - A local MQTT/MEC integration prototype is available in [`mec-app/deploy/`](mec-app/deploy/README.md), including dual ACME MN-CSE tests, IN-CSE transit, MEC-IPE, and TLS.
 - Live ESTIMED deployment, physical ESP32 integration, ACME-Mobius interoperability, full MEC021 handover, and the digital-twin web application remain pending.
+- A local Python grid fire simulator with 2D/3D views and an English dashboard is available in `mec-app/deploy/`, including working sensor/message filters, JSON inspection, CSV export, agent route details and goal controls, MQTTX setup, a Docker-free launcher, and MQTT-to-CSE telemetry. The 3D scene displays the same simplified 2D model. This demo does not yet replace the team-owned swarm algorithm or final `twin/` application. See the [simulator guide](mec-app/deploy/docs/simulator-mqttx-guide.md).
 
 ## Folder Ownership
 
@@ -72,5 +73,5 @@ python -m venv .venv
 ```
 
 The test suite starts temporary real MQTT and ACME CSE instances. MEC API inputs
-come from a local contract fixture. See the [verification record](mec-app/deploy/docs/verification.md)
-for tested behavior and the [task status](mec-app/deploy/docs/task-status.md) for remaining live integration work.
+come from a local contract fixture. See the [deployment guide](mec-app/deploy/docs/deployment-guide.md)
+for integration boundaries and live deployment acceptance checks.
