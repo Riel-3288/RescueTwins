@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RescueTwin · Field Overview</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/english.css"></head>
+<body>
+<aside class="sidebar"><a class="brand" href="/" aria-label="RescueTwin home"><span class="brand-icon">R<span>·</span></span>RescueTwin</a><div class="edition">FIELD OPERATIONS / 01</div><div class="nav-label">WORKSPACE</div><div class="nav-item"><span>◈</span> Field overview <b>01</b></div><div class="side-bottom"><span class="small-dot"></span> oneM2M connected architecture<br><span>RescueTwin / Hackathon 2026</span></div></aside>
+<main>
+<header><div class="breadcrumb">Workspace <span>/</span> Zone A <span>/</span> Field overview</div><div class="header-right"><span class="local-tag">LOCAL</span><span id="clock"></span></div></header>
+<section class="page-heading"><div><div class="eyebrow">SENSOR OBSERVATORY</div><h1>A clearer view of the field<span>.</span></h1><p>The latest readings from Zone A, accessed through Mobius.</p></div><button id="refresh" type="button"><span>↻</span> Refresh now</button></section>
+<section class="connection-bar" aria-live="polite"><span id="connection-dot" class="dot"></span><strong id="connection">Checking connection</strong><span class="divider"></span><span>Refreshes every 5 seconds</span><span id="last-check">Not checked yet</span></section>
+<div class="workspace">
+<section class="sensor-section"><div class="section-heading"><h2>Sensor overview <span>LIVE READINGS</span></h2><span id="count">— / 6 valid</span></div><div class="cards" id="cards"></div><p class="footnote">“Historical” means the MN received the record over 60 seconds ago; it does not confirm that the device is online. Raw MQ ADC values are not gas concentrations.</p></section>
+<aside class="context"><section class="zone-panel"><div class="panel-top"><span>MONITORING ZONE</span><span class="zone-badge">A</span></div><div class="zone-visual"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="node-core" id="node-core">◈</div><span class="node-name">node-01</span><span class="schematic">Node schematic · Not a location map</span></div><div class="zone-caption"><strong>Zone A / Sensor node</strong><span id="node-state">Waiting for platform response</span></div></section>
+<section class="route-panel"><h2>Data access path</h2><div class="route-step"><i>01</i><div><strong>Mobius IN-CSE</strong><span>Central endpoint · HTTP 7599</span></div></div><div class="route-line"></div><div class="route-step"><i>02</i><div><strong>ACME MN-CSE</strong><span>Zone A · HTTP 8001</span></div></div><div class="route-line"></div><div class="route-step"><i>03</i><div><strong>node-01</strong><span>Latest record in each container</span></div></div><p>Dedicated web AE · Read-only access</p></section></aside>
+</div>
+<footer><span>RESCUETWIN <b>／</b> DIGITAL TWIN PROTOTYPE</span><span>Stored readings · No generated fallback data</span></footer>
+</main>
+<dialog id="detail"><div class="dialog-heading"><h2 id="detail-title">Record details</h2><button id="close-detail" aria-label="Close details">×</button></div><pre id="detail-json"></pre></dialog>
+<script src="/app.js"></script>
+</body></html>

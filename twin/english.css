@@ -1,0 +1,11 @@
+/* Keep English labels readable on compact cards. */
+.card-top{gap:8px;flex-wrap:wrap}
+.badge{white-space:nowrap;margin-left:auto}
+.card-title{min-width:0}
+.meta{flex-wrap:wrap;line-height:1.6}
+.timestamp{font-variant-numeric:tabular-nums}
+.details{white-space:nowrap}
+.connection-bar{flex-wrap:wrap}
+.nav-item{gap:8px}
+.schematic{text-align:center;line-height:1.5;max-width:100%}
+@media(max-width:600px){.breadcrumb span{margin:0 5px}.page-heading{flex-wrap:wrap}.page-heading button{margin-left:auto}.header-right{gap:6px}.local-tag{display:none}h1{letter-spacing:-.6px}footer{flex-wrap:wrap}}
