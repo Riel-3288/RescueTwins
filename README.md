@@ -25,7 +25,9 @@ robot simulations, and a digital-twin web application.
 - The AE and sensor containers for `node-01` have been created.
 - Basic access-control permissions for `node-01` have been configured.
 - Physical ESP32 sensor uploads and multi-device network integration are pending.
-- MN-CSE, Mobius IN-CSE, MQTT, and the digital-twin web application are pending.
+- A local MQTT/MEC integration prototype is available in [`mec-app/deploy/`](mec-app/deploy/README.md), including dual ACME MN-CSE tests, IN-CSE transit, MEC-IPE, and TLS.
+- Live ESTIMED deployment, physical ESP32 integration, ACME-Mobius interoperability, full MEC021 handover, and the digital-twin web application remain pending.
+- A local Python grid fire simulator with 2D/3D views and an English dashboard is available in `mec-app/deploy/`, including working sensor/message filters, JSON inspection, CSV export, agent route details and goal controls, MQTTX setup, a Docker-free launcher, and MQTT-to-CSE telemetry. The 3D scene displays the same simplified 2D model. This demo does not yet replace the team-owned swarm algorithm or final `twin/` application. See the [simulator guide](mec-app/deploy/docs/simulator-mqttx-guide.md).
 
 ## Folder Ownership
 
@@ -53,3 +55,23 @@ Open a PowerShell terminal in the project root directory and run:
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 -m acmecse --base-directory .\acme-local
+```
+
+## MQTT and MEC Integration
+
+The [`mec-app/deploy` guide](mec-app/deploy/README.md) covers the telemetry contract,
+local Docker Compose setup, MEC Location/RNIS integration, factory scenario,
+TLS configuration, and shared-host deployment templates.
+
+From this repository root, run the integration tests with Python 3.13:
+
+```powershell
+cd mec-app/deploy
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-test.txt
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+The test suite starts temporary real MQTT and ACME CSE instances. MEC API inputs
+come from a local contract fixture. See the [deployment guide](mec-app/deploy/docs/deployment-guide.md)
+for integration boundaries and live deployment acceptance checks.

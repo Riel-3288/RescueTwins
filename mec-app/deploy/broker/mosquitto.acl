@@ -1,0 +1,15 @@
+user bridge
+topic read rescuetwin/+/+/+
+topic write rescuetwin-ack/+/+
+
+user node-01
+topic write rescuetwin/A/node-01/+
+topic read rescuetwin-ack/A/node-01
+
+user node-02
+topic write rescuetwin/A/node-02/+
+topic read rescuetwin-ack/A/node-02
+
+user node-03
+topic write rescuetwin/B/node-03/+
+topic read rescuetwin-ack/B/node-03

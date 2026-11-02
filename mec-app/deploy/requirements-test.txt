@@ -1,0 +1,5 @@
+-r requirements.txt
+pytest==8.4.2
+amqtt==0.11.3
+acmecse==2026.5.3
+cryptography>=44,<47

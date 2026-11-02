@@ -1,0 +1,491 @@
+version: 1.11.0
+name: rescuetwin-factory
+description: 100x60 metre synthetic factory, two logical MEC zones, ten UE tracks.
+  Application deployment is separate.
+deployment:
+  connectivity:
+    model: OPEN
+  netChar:
+    latency: 0
+    latencyVariation: 0
+    throughputUl: 100
+    throughputDl: 100
+    packetLoss: 0
+  domains:
+  - id: 3037b94f-84db-5c00-8c70-bae4817c695f
+    name: factory-operator
+    type: OPERATOR-CELLULAR
+    netChar:
+      latency: 0
+      latencyVariation: 0
+      throughputUl: 100
+      throughputDl: 100
+      packetLoss: 0
+    cellularDomainConfig:
+      mcc: '001'
+      mnc: '002'
+      defaultCellId: CAFEDEC
+    zones:
+    - id: 8f5b3e50-db3c-584b-95fa-a37824758a0a
+      name: factory-COMMON
+      type: COMMON
+      networkLocations:
+      - id: cb29b093-4cdc-5666-999c-ca6e872669a1
+        name: factory-COMMON-DEFAULT
+        type: DEFAULT
+        physicalLocations:
+        - id: 55c18b99-e62f-50af-886c-1b4d41f74c1b
+          name: in-host
+          type: DC
+          connected: true
+          geoData:
+            location:
+              type: Point
+              coordinates:
+              - 101.70644970442437
+              - 2.832077973409989
+          netChar:
+            latency: 0
+            latencyVariation: 0
+            throughputUl: 100
+            throughputDl: 100
+            packetLoss: 0
+          processes: []
+        netChar:
+          latency: 40
+          latencyVariation: 0
+          throughputUl: 100
+          throughputDl: 100
+          packetLoss: 0
+      netChar:
+        latency: 0
+        latencyVariation: 0
+        throughputUl: 100
+        throughputDl: 100
+        packetLoss: 0
+    - id: 33db8490-ba98-5867-8c5b-b7d97035c0f0
+      name: zone-A
+      type: ZONE
+      netChar:
+        latency: 1
+        latencyVariation: 0
+        throughputUl: 100
+        throughputDl: 100
+        packetLoss: 0
+      networkLocations:
+      - id: f963528d-b8cf-54dc-a46b-5190a37acabc
+        name: zone-A-DEFAULT
+        type: DEFAULT
+        physicalLocations:
+        - id: 56929414-fded-5855-abd8-5acc268ec9b4
+          name: mec-host-a
+          type: EDGE
+          connected: true
+          geoData:
+            location:
+              type: Point
+              coordinates:
+              - 101.70622485221219
+              - 2.8312694933524973
+          processes: []
+          netChar:
+            latency: 0
+            latencyVariation: 0
+            throughputUl: 100
+            throughputDl: 100
+            packetLoss: 0
+        netChar:
+          latency: 0
+          latencyVariation: 0
+          throughputUl: 100
+          throughputDl: 100
+          packetLoss: 0
+      - id: 56691abe-737d-52c7-a2a2-f1a61a6efc0e
+        name: poa-5g-a
+        type: POA-5G
+        poa5GConfig:
+          cellId: '1010101'
+        geoData:
+          location:
+            type: Point
+            coordinates:
+            - 101.70622485221219
+            - 2.8312694933524973
+          radius: 45
+        physicalLocations:
+        - id: 0b83ea39-b44b-53a8-a135-b667c0241faf
+          name: 10.10.0.1
+          type: UE
+          connected: true
+          wireless: true
+          wirelessType: 5g
+          geoData:
+            location:
+              type: Point
+              coordinates:
+              - 101.70608994088488
+              - 2.831071864893999
+            path:
+              type: LineString
+              coordinates:
+              - - 101.70608994088488
+                - 2.831071864893999
+              - - 101.70640473398193
+                - 2.831071864893999
+              - - 101.7064946748668
+                - 2.831071864893999
+              - - 101.70680946796386
+                - 2.831071864893999
+            velocity: 1
+            eopMode: REVERSE
+          netChar:
+            latency: 1
+            latencyVariation: 0
+            throughputUl: 100
+            throughputDl: 100
+            packetLoss: 0
+        - id: 7560f451-6b5b-5af1-b55f-4530cdd1e506
+          name: 10.10.0.2
+          type: UE
+          connected: true
+          wireless: true
+          wirelessType: 5g
+          geoData:
+            location:
+              type: Point
+              coordinates:
+              - 101.70608994088488
+              - 2.8311616960114985
+            path:
+              type: LineString
+              coordinates:
+              - - 101.70608994088488
+                - 2.8311616960114985
+              - - 101.70640473398193
+                - 2.8311616960114985
+              - - 101.7064946748668
+                - 2.8311616960114985
+              - - 101.70680946796386
+                - 2.8311616960114985
+            velocity: 1
+            eopMode: REVERSE
+          netChar:
+            latency: 1
+            latencyVariation: 0
+            throughputUl: 100
+            throughputDl: 100
+            packetLoss: 0
+        - id: 35bd3a98-1a9c-5fd2-8de2-d7def27b943d
+          name: 10.10.0.3
+          type: UE
+          connected: true
+          wireless: true
+          wirelessType: 5g
+          geoData:
+            location:
+              type: Point
+              coordinates:
+              - 101.70608994088488
+              - 2.8312515271289973
+            path:
+              type: LineString
+              coordinates:
+              - - 101.70608994088488
+                - 2.8312515271289973
+              - - 101.70640473398193
+                - 2.8312515271289973
+              - - 101.7064946748668
+                - 2.8312515271289973
+              - - 101.70680946796386
+                - 2.8312515271289973
+            velocity: 1
+            eopMode: REVERSE
+          netChar:
+            latency: 1
+            latencyVariation: 0
+            throughputUl: 100
+            throughputDl: 100
+            packetLoss: 0
+        - id: c6d236ec-a78f-50b9-b342-5570aeddbbc9
+          name: 10.10.0.4
+          type: UE
+          connected: true
+          wireless: true
+          wirelessType: 5g
+          geoData:
+            location:
+              type: Point
+              coordinates:
+              - 101.70608994088488
+              - 2.8313413582464966
+            path:
+              type: LineString
+              coordinates:
+              - - 101.70608994088488
+                - 2.8313413582464966
+              - - 101.70640473398193
+                - 2.8313413582464966
+              - - 101.7064946748668
+                - 2.8313413582464966
+              - - 101.70680946796386
+                - 2.8313413582464966
+            velocity: 1
+            eopMode: REVERSE
+          netChar:
+            latency: 1
+            latencyVariation: 0
+            throughputUl: 100
+            throughputDl: 100
+            packetLoss: 0
+        - id: 1099b46e-1bae-53fb-b5bc-e58e17d32e58
+          name: 10.10.0.5
+          type: UE
+          connected: true
+          wireless: true
+          wirelessType: 5g
+          geoData:
+            location:
+              type: Point
+              coordinates:
+              - 101.70608994088488
+              - 2.831431189363996
+            path:
+              type: LineString
+              coordinates:
+              - - 101.70608994088488
+                - 2.831431189363996
+              - - 101.70640473398193
+                - 2.831431189363996
+              - - 101.7064946748668
+                - 2.831431189363996
+              - - 101.70680946796386
+                - 2.831431189363996
+            velocity: 1
+            eopMode: REVERSE
+          netChar:
+            latency: 1
+            latencyVariation: 0
+            throughputUl: 100
+            throughputDl: 100
+            packetLoss: 0
+        netChar:
+          latency: 1
+          latencyVariation: 0
+          throughputUl: 100
+          throughputDl: 100
+          packetLoss: 0
+      meta:
+        display.map.color: '#C23B22'
+    - id: de1d45ad-6ba3-52f7-ba37-fcda98a020d9
+      name: zone-B
+      type: ZONE
+      netChar:
+        latency: 1
+        latencyVariation: 0
+        throughputUl: 100
+        throughputDl: 100
+        packetLoss: 0
+      networkLocations:
+      - id: bc79521c-8780-5e6a-b7d5-f0204b0e2634
+        name: zone-B-DEFAULT
+        type: DEFAULT
+        physicalLocations:
+        - id: 8a748dae-361f-57fb-9e3f-0e1ca2a90f49
+          name: mec-host-b
+          type: EDGE
+          connected: true
+          geoData:
+            location:
+              type: Point
+              coordinates:
+              - 101.70667455663656
+              - 2.8312694933524973
+          processes: []
+          netChar:
+            latency: 0
+            latencyVariation: 0
+            throughputUl: 100
+            throughputDl: 100
+            packetLoss: 0
+        netChar:
+          latency: 0
+          latencyVariation: 0
+          throughputUl: 100
+          throughputDl: 100
+          packetLoss: 0
+      - id: 6b03cf96-62a9-5321-adcb-e0e5a529a0da
+        name: poa-5g-b
+        type: POA-5G
+        poa5GConfig:
+          cellId: '1010102'
+        geoData:
+          location:
+            type: Point
+            coordinates:
+            - 101.70667455663656
+            - 2.8312694933524973
+          radius: 45
+        physicalLocations:
+        - id: 34e0615c-5c86-59c5-8d7f-9e5f0245905d
+          name: 10.10.0.6
+          type: UE
+          connected: true
+          wireless: true
+          wirelessType: 5g
+          geoData:
+            location:
+              type: Point
+              coordinates:
+              - 101.70680946796386
+              - 2.831071864893999
+            path:
+              type: LineString
+              coordinates:
+              - - 101.70608994088488
+                - 2.831071864893999
+              - - 101.70640473398193
+                - 2.831071864893999
+              - - 101.7064946748668
+                - 2.831071864893999
+              - - 101.70680946796386
+                - 2.831071864893999
+            velocity: 1
+            eopMode: REVERSE
+          netChar:
+            latency: 1
+            latencyVariation: 0
+            throughputUl: 100
+            throughputDl: 100
+            packetLoss: 0
+        - id: 4f8d073a-90af-5916-a634-48d5383150e9
+          name: 10.10.0.7
+          type: UE
+          connected: true
+          wireless: true
+          wirelessType: 5g
+          geoData:
+            location:
+              type: Point
+              coordinates:
+              - 101.70680946796386
+              - 2.8311616960114985
+            path:
+              type: LineString
+              coordinates:
+              - - 101.70608994088488
+                - 2.8311616960114985
+              - - 101.70640473398193
+                - 2.8311616960114985
+              - - 101.7064946748668
+                - 2.8311616960114985
+              - - 101.70680946796386
+                - 2.8311616960114985
+            velocity: 1
+            eopMode: REVERSE
+          netChar:
+            latency: 1
+            latencyVariation: 0
+            throughputUl: 100
+            throughputDl: 100
+            packetLoss: 0
+        - id: bea6475d-70a0-5da8-8db0-3c4b002cd592
+          name: 10.10.0.8
+          type: UE
+          connected: true
+          wireless: true
+          wirelessType: 5g
+          geoData:
+            location:
+              type: Point
+              coordinates:
+              - 101.70680946796386
+              - 2.8312515271289973
+            path:
+              type: LineString
+              coordinates:
+              - - 101.70608994088488
+                - 2.8312515271289973
+              - - 101.70640473398193
+                - 2.8312515271289973
+              - - 101.7064946748668
+                - 2.8312515271289973
+              - - 101.70680946796386
+                - 2.8312515271289973
+            velocity: 1
+            eopMode: REVERSE
+          netChar:
+            latency: 1
+            latencyVariation: 0
+            throughputUl: 100
+            throughputDl: 100
+            packetLoss: 0
+        - id: f00af319-2f1e-54d9-aed3-07b577c517b3
+          name: 10.10.0.9
+          type: UE
+          connected: true
+          wireless: true
+          wirelessType: 5g
+          geoData:
+            location:
+              type: Point
+              coordinates:
+              - 101.70680946796386
+              - 2.8313413582464966
+            path:
+              type: LineString
+              coordinates:
+              - - 101.70608994088488
+                - 2.8313413582464966
+              - - 101.70640473398193
+                - 2.8313413582464966
+              - - 101.7064946748668
+                - 2.8313413582464966
+              - - 101.70680946796386
+                - 2.8313413582464966
+            velocity: 1
+            eopMode: REVERSE
+          netChar:
+            latency: 1
+            latencyVariation: 0
+            throughputUl: 100
+            throughputDl: 100
+            packetLoss: 0
+        - id: b62d2421-aa35-59ea-8df1-646efafecc76
+          name: 10.10.0.10
+          type: UE
+          connected: true
+          wireless: true
+          wirelessType: 5g
+          geoData:
+            location:
+              type: Point
+              coordinates:
+              - 101.70680946796386
+              - 2.831431189363996
+            path:
+              type: LineString
+              coordinates:
+              - - 101.70608994088488
+                - 2.831431189363996
+              - - 101.70640473398193
+                - 2.831431189363996
+              - - 101.7064946748668
+                - 2.831431189363996
+              - - 101.70680946796386
+                - 2.831431189363996
+            velocity: 1
+            eopMode: REVERSE
+          netChar:
+            latency: 1
+            latencyVariation: 0
+            throughputUl: 100
+            throughputDl: 100
+            packetLoss: 0
+        netChar:
+          latency: 1
+          latencyVariation: 0
+          throughputUl: 100
+          throughputDl: 100
+          packetLoss: 0
+      meta:
+        display.map.color: '#1F6E8C'
