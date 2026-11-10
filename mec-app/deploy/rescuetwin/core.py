@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 UNITS = {"temperature": "degC", "humidity": "percent", "pressure": "hPa",
-         "smoke_raw": "adc", "co_raw": "adc", "presence": "boolean"}
+         "smoke_raw": "mV", "co_raw": "mV", "presence": "boolean"}
 FIELDS = {"device_id", "zone_id", "sensor_type", "value", "unit", "source", "quality", "observed_at"}
 NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
@@ -66,8 +66,8 @@ def validate_reading(value, devices, topic=None):
         # These are format checks, not calibrated hazard thresholds.
         if sensor == "humidity" and not 0 <= number <= 100:
             raise ValueError("humidity must be between 0 and 100 percent")
-        if sensor in ("smoke_raw", "co_raw") and (type(number) is not int or not 0 <= number <= 4095):
-            raise ValueError("ESP32 ADC value must be an integer in 0..4095")
+        if sensor in ("smoke_raw", "co_raw") and number < 0:
+            raise ValueError("sensor voltage in mV must be nonnegative")
         if sensor == "pressure" and number <= 0:
             raise ValueError("pressure must be positive")
     return value

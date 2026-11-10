@@ -19,6 +19,8 @@ from .onem2m import Cse
 
 
 def provision(cfg):
+    if not cfg.get("allow_provision", True):
+        raise ValueError("Team profile disables provisioning; independent AE/ACP approval is required")
     for zone, endpoint in cfg["cse"].items():
         if zone not in ("A", "B", "IN"):
             continue
@@ -85,8 +87,8 @@ def strict_json(text):
 def sample_plan(path, cfg):
     raw = Path(path).read_bytes()
     if len(raw) > 4 * 1024 * 1024: raise ValueError('sample file exceeds 4 MiB')
-    records = strict_json(raw)
-    if not isinstance(records, list) or not records: raise ValueError('expected a nonempty JSON array')
+    from .recordings import parse_records
+    records = parse_records(raw)
     accepted, rejected = [], []
     for index, record in enumerate(records):
         try:
@@ -114,6 +116,8 @@ def selected(plan, skip_invalid):
 
 
 def replay(cfg, plan, skip_invalid=False, factory=Cse):
+    if not cfg.get("allow_cse_writes", True):
+        raise ValueError("Team profile is read-only; register an independent AE and agree ACPs before enabling writes")
     records = selected(plan, skip_invalid)  # validate the entire batch before any write
     result = dict(input_sha256=plan['input_sha256'], rejected=plan['rejected'], events=[], complete=False)
     for index, reading in records:
@@ -246,6 +250,14 @@ def main():
     subs.add_parser("provision")
     subs.add_parser("bridge")
     subs.add_parser("status")
+    native = subs.add_parser("native-import")
+    native.add_argument("--file", required=True)
+    native.add_argument("--zone", choices=["A", "B"], default="A")
+    native.add_argument("--send", action="store_true")
+    native.add_argument("--skip-invalid", action="store_true")
+    native.add_argument("--output", default="runtime/native-import.json")
+    check = subs.add_parser("check-team")
+    check.add_argument("--output", default="runtime/team-check.json")
     for action in ['samples','replay-samples','benchmark-samples','network-experiment']:
         command = subs.add_parser(action)
         command.add_argument('--file', default=str(DEFAULT_SAMPLES))
@@ -276,7 +288,23 @@ def main():
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     cfg = load_config(args.config)
-    if args.action in ['samples','replay-samples','benchmark-samples','network-experiment']:
+    if not cfg.get("allow_cse_writes", True) and args.action in ("bridge", "publish", "native-publish", "ipe", "command", "benchmark", "benchmark-samples", "network-experiment"):
+        raise ValueError("Team profile disables write operations until an independent application identity and ACP are agreed")
+    if args.action == "native-import":
+        from .native import native_plan, native_upload
+        plan = native_plan(cfg, args.zone, args.file)
+        save(args.output, plan)
+        result = native_upload(cfg, plan, args.skip_invalid, args.send)
+        save(args.output, result)
+        print(json.dumps(result, indent=2))
+        if args.send and not result["complete"]: raise RuntimeError("Native upload incomplete; inspect per-record results")
+    elif args.action == "check-team":
+        from .team import check_team
+        result = check_team(cfg)
+        save(args.output, result)
+        print(json.dumps(result, indent=2))
+        if not result["complete"]: raise RuntimeError("Some read-only checks failed; inspect the report")
+    elif args.action in ['samples','replay-samples','benchmark-samples','network-experiment']:
         run_samples(args,cfg)
     elif args.action == "provision":
         provision(cfg)

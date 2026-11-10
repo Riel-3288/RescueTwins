@@ -99,12 +99,12 @@ docker compose -f compose.local.yaml up -d --build
 | temperature | degC | 有限数字 |
 | humidity | percent | 0..100 |
 | pressure | hPa | 正数 |
-| smoke_raw / co_raw | adc | 0..4095 整数（ESP32 12 bit ADC） |
+| smoke_raw / co_raw | mV | 有限、非负数；支持整数和小数 |
 | presence | boolean | JSON `true` / `false` |
 
 `zone_id` 为 A/B，`source` 为 physical/simulation，`quality` 为 valid/invalid。
 失效传感器可发 `quality: invalid, value: null`；边缘决策应排除 invalid 数据。
-数值范围检查不是火灾或 CO 浓度判断，`adc` 不代表 ppm。
+数值范围检查不是火灾或 CO 浓度判断，`mV` 不代表 ppm。
 字段名、topic 中的设备及区域、配置中的设备映射必须一致；额外字段也会被拒绝。
 
 每条读数转成：
@@ -283,7 +283,7 @@ broker Service 默认 ClusterIP。让硬件访问前，需主办方提供合适�
 
 ## 数据入口
 
-默认数据是根目录 simulation/sample_data.json（25 条）。14 条符合当前八字段协议；11 条被隔离：10 条 smoke_raw/co_raw 单位 mV，与约定 adc 不同；1 条 observed_at 缺失。保留原 source、数值、单位与历史 UTC，不把文件里的 physical 标记当作实时物理设备在线证据。请由数据/协议负责人确认 mV 标定或更新协议；本模块不擅自换算。
+默认数据是根目录 simulation/sample_data.json（25 条）。24 条符合当前八字段协议；1 条因 observed_at 缺失被隔离。smoke_raw/co_raw 已按团队确认统一为 mV。保留原 source、数值、单位与历史 UTC，不把文件里的 physical 标记当作实时物理设备在线证据。mV 作为电压原值保留；危险阈值仍需按该单位单独确认。
 
 从 mec-app/deploy 的 PowerShell 执行：
 
@@ -323,7 +323,7 @@ start-demo.ps1 仍启动既有地图/agent 模型，但 sensor 读数默认改�
 .\.venv\Scripts\python.exe -m rescuetwin --config config.local.json benchmark-samples --skip-invalid --count 3
 ```
 
-这是同负载存储请求往返（创建+读回），不冒充 ESP32→告警全链路时延。源数据的 mV 烟雾/CO 不能在缺少标定时当 ADC 告警阈值输入。
+这是同负载存储请求往返（创建+读回），不冒充 ESP32→告警全链路时延。mV 烟雾/CO 采用同单位阈值；不能沿用 ADC 计数阈值或冒充 ppm。
 
 ## 双向 AMS 配置
 

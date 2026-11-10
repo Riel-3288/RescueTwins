@@ -1,4 +1,4 @@
-export const SENSOR_UNITS = {temperature:'degC', humidity:'percent', pressure:'hPa', smoke_raw:'adc', co_raw:'adc', presence:'boolean'};
+export const SENSOR_UNITS = {temperature:'degC', humidity:'percent', pressure:'hPa', smoke_raw:'mV', co_raw:'mV', presence:'boolean'};
 
 export function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

@@ -1,4 +1,6 @@
 param(
+    [ValidateSet('Recorded','LocalDemo','LocalCse','Swarm','SwarmHeadless')]
+    [string]$Mode = 'Recorded',
     [switch]$WithoutCse,
     [switch]$ExistingBroker,
     [switch]$CheckOnly
@@ -6,29 +8,46 @@ param(
 $ErrorActionPreference = 'Stop'
 Push-Location $PSScriptRoot
 try {
+    if ($WithoutCse) { $Mode = 'LocalDemo' }
     $demoPython = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
     if (-not (Test-Path -LiteralPath $demoPython)) {
         py -3.13 -m venv .venv
         if ($LASTEXITCODE -ne 0) { throw 'Python 3.13 is required. Install it and retry.' }
     }
-    & $demoPython -c "import importlib.util, sys; sys.exit(0 if all(importlib.util.find_spec(name) for name in ('paho', 'amqtt', 'acmecse')) else 1)"
+    $requirements = 'requirements.txt'
+    $moduleList = "('paho', 'requests', 'yaml')"
+    if ($Mode -in @('LocalDemo','LocalCse')) {
+        $requirements = 'requirements-demo.txt'
+        $moduleList = "('paho', 'amqtt', 'acmecse')"
+    }
+    if ($Mode -in @('Swarm','SwarmHeadless')) {
+        $requirements = 'requirements-simulation.txt'
+        $moduleList = "('numpy', 'matplotlib')"
+    }
+    & $demoPython -c "import importlib.util, sys; sys.exit(0 if all(importlib.util.find_spec(name) for name in $moduleList) else 1)"
     if ($LASTEXITCODE -ne 0) {
-        & $demoPython -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('pip') else 1)"
-        if ($LASTEXITCODE -ne 0) {
-            & $demoPython -m ensurepip --upgrade
-            if ($LASTEXITCODE -ne 0) { throw 'Could not initialize pip. Recreate the local virtual environment.' }
-        }
-        & $demoPython -m pip install -r requirements-demo.txt
+        & $demoPython -m ensurepip --upgrade
+        if ($LASTEXITCODE -ne 0) { throw 'Could not initialize pip.' }
+        & $demoPython -m pip install -r $requirements
         if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
     }
-    if ($CheckOnly) {
-        Write-Output 'Python environment ready. Run without -CheckOnly to start the demo.'
-        return
+    if ($CheckOnly) { Write-Output "Environment ready for $Mode."; return }
+    if ($Mode -in @('Swarm','SwarmHeadless')) {
+        $simulationScript = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'simulation\rescue_sim.py'
+        $simulationArguments = @('-X','utf8',$simulationScript)
+        if ($Mode -eq 'SwarmHeadless') { $simulationArguments += '--no-anim' }
+        Write-Output 'The simulation runs benchmarks and regenerates its two output JSONL files before animation.'
+        & $demoPython @simulationArguments
+    } else {
+        $demoArguments = @('-X','utf8','-m','rescuetwin.demo')
+        if ($Mode -eq 'Recorded') {
+            $demoArguments += @('--config',(Join-Path $PSScriptRoot 'config.team.example.json'),'--recorded-only')
+        } else {
+            if (-not $ExistingBroker) { $demoArguments += '--local-broker' }
+            if ($Mode -eq 'LocalCse') { $demoArguments += '--with-cse' }
+        }
+        & $demoPython @demoArguments
     }
-    $demoArguments = @('-X', 'utf8', '-m', 'rescuetwin.demo')
-    if (-not $ExistingBroker) { $demoArguments += '--local-broker' }
-    if (-not $WithoutCse) { $demoArguments += '--with-cse' }
-    & $demoPython @demoArguments
-    if ($LASTEXITCODE -ne 0) { throw 'Demo exited with an error. Read the output above.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Run failed. Read the output above.' }
 }
 finally { Pop-Location }

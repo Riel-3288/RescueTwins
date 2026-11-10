@@ -226,8 +226,8 @@ class Factory:
             k = self.index(x, y)
             values = {"temperature": round(self.heat[k], 1),
                       "humidity": round(max(5, 55 - (self.heat[k] - 28.6) * 0.15), 1),
-                      "pressure": 1013.2, "smoke_raw": min(4095, int(180 + self.smoke[k] * 3700)),
-                      "co_raw": min(4095, int(90 + self.smoke[k] * 1900)),
+                      "pressure": 1013.2, "smoke_raw": round(180 + self.smoke[k] * 2900, 1),
+                      "co_raw": round(90 + self.smoke[k] * 2500, 1),
                       "presence": any(abs(a["x"] - x) + abs(a["y"] - y) <= 3 for a in self.agents)}
             for sensor, value in values.items():
                 result.append({"device_id": device, "zone_id": "A" if x < 25 else "B",

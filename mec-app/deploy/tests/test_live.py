@@ -184,7 +184,7 @@ def recorded_config():
 
 def test_actual_sample_data_is_preserved_and_incompatible_rows_reported():
     cfg=recorded_config(); before=DEFAULT_SAMPLES.read_bytes(); plan=sample_plan(DEFAULT_SAMPLES,cfg)
-    assert (plan['input_rows'],len(plan['accepted']),len(plan['rejected'])) == (25,14,11)
+    assert (plan['input_rows'],len(plan['accepted']),len(plan['rejected'])) == (25,24,1)
     raw=json.loads(before)
     assert all(value == raw[index] for index,value in plan['accepted'])
     assert DEFAULT_SAMPLES.read_bytes()==before
@@ -198,7 +198,7 @@ def test_demo_file_input_is_once_only_and_does_not_replace_timestamps():
     assert demo.next_sensor_readings()==[]
     demo.connected=True;demo.mqtt_ready.set()
     rows=demo.next_sensor_readings()
-    assert len(rows)==14 and rows[0]['observed_at']=='2026-11-01T22:08:30Z'
+    assert len(rows)==24 and rows[0]['observed_at']=='2026-11-01T22:08:30Z'
     assert demo.next_sensor_readings()==[]
 
 
@@ -222,13 +222,13 @@ def test_recorded_samples_replay_and_real_mcc_measurement(live,tmp_path):
     cfg['cse']['VIA_IN']['originators']={'node-01':'/id-mn-a/CNode01'}
     plan=sample_plan(DEFAULT_SAMPLES,cfg)
     result=replay(cfg,plan,True)
-    assert result['complete'] and len(result['events'])==14
+    assert result['complete'] and len(result['events'])==24
     assert replay(cfg,plan,True)['complete']
     output=tmp_path/'matched.csv'
     report=benchmark_samples(cfg,plan,1,output,True)
     assert report['complete']
-    assert report['paths']['A']['successes']==14 and report['paths']['VIA_IN']['successes']==14
-    assert len(output.read_text().splitlines())==29
+    assert report['paths']['A']['successes']==24 and report['paths']['VIA_IN']['successes']==24
+    assert len(output.read_text().splitlines())==49
     no_route=copy.deepcopy(cfg);no_route['cse'].pop('VIA_IN')
     with pytest.raises(ValueError):benchmark_samples(no_route,plan,1,tmp_path/'bad.csv',True)
 

@@ -58,6 +58,9 @@ class Demo:
         self.telemetry_gate = TelemetryGate()
         self.rescue = Rescue(config, self.factory, self.publish, bridge)
         self.executor = LocalExecutor(self.factory, self.rescue, self.publish)
+        from .recordings import RecordedMission
+        self.recorded = RecordedMission(config)
+        self.recorded.load_defaults()
         self.file_rows = None
         self.file_report = None
         if config.get('sensor_file'):
@@ -199,6 +202,7 @@ class Demo:
     def snapshot(self):
         with self.lock:
             value = self.factory.snapshot()
+            value["recorded"] = self.recorded.snapshot()
             value['sensor_input'] = dict(mode='recorded-file' if self.file_rows is not None else 'generated',
                 file=self.config.get('sensor_file'), rejected=self.file_report['rejected'] if self.file_report else [],
                 note='File input preserves source/time; stale records do not assert an online physical sensor.')
@@ -218,7 +222,13 @@ class Demo:
             return value
 
     def control(self, data):
-        if data.get('action') == 'ack_incident':
+        if data.get('action') == 'recorded_seek':
+            self.recorded.seek(data.get('step'))
+        elif data.get('action') == 'drone_plan':
+            self.recorded.plan(data.get('drone_id'), data.get('goal'), data.get('battery', 100))
+        elif data.get('action') == 'drone_simulate':
+            self.recorded.simulate(data.get('drone_id'), data.get('plan_id'))
+        elif data.get('action') == 'ack_incident':
             self.rescue.acknowledge(data.get('incident_id'))
         elif data.get('action') == 'retry_incident':
             self.rescue.retry(data.get('incident_id'))
@@ -279,6 +289,9 @@ def make_server(demo, port):
             path = urlparse(self.path).path
             if path == "/api/state":
                 return self.send(demo.snapshot())
+            if path == "/api/recorded/export.json":
+                with demo.lock:
+                    return self.send(demo.recorded.snapshot(), attachment="rescuetwin-recorded-mission.json")
             if path == "/api/export.json":
                 return self.send(demo.snapshot(), attachment="rescuetwin-snapshot.json")
             if path == "/api/readings.csv":
@@ -301,7 +314,21 @@ def make_server(demo, port):
             origin = self.headers.get("Origin")
             if origin and origin != "http://" + self.headers.get("Host", ""):
                 return self.send({"error": "cross-origin command rejected"}, 403)
-            if urlparse(self.path).path != "/api/control":
+            path = urlparse(self.path).path
+            if path.startswith("/api/upload/"):
+                try:
+                    kind = path.rsplit("/", 1)[-1]
+                    length = int(self.headers.get("Content-Length", "0"))
+                    if not 0 < length <= 4 * 1024 * 1024:
+                        raise ValueError("Upload must contain 1 byte to 4 MiB")
+                    raw = self.rfile.read(length)
+                    if len(raw) != length: raise ValueError("Incomplete upload")
+                    with demo.lock:
+                        result = demo.recorded.upload(kind, raw)
+                    return self.send(result)
+                except (ValueError, TypeError, KeyError, UnicodeDecodeError, OverflowError) as exc:
+                    return self.send({"error": str(exc)}, 400)
+            if path != "/api/control":
                 return self.send({"error": "not found"}, 404)
             if self.headers.get("Content-Type", "").split(";")[0] != "application/json":
                 return self.send({"error": "Content-Type must be application/json"}, 415)
@@ -415,6 +442,7 @@ def main():
     parser.add_argument("--config", type=Path, default=ROOT / "config.example.json")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--local-broker", action="store_true")
+    parser.add_argument("--recorded-only", action="store_true", help="Offline files only; no MQTT or CSE processes")
     parser.add_argument("--with-cse", action="store_true", help="Launch isolated local ACME IN/A/B and bridge")
     parser.add_argument("--bridge", action="store_true", help="Connect bridge to CSE endpoints already running in config")
     from .__main__ import DEFAULT_SAMPLES
@@ -423,6 +451,10 @@ def main():
     args = parser.parse_args()
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
     cfg = copy.deepcopy(load_config(args.config))
+    if args.recorded_only and (args.local_broker or args.with_cse or args.bridge):
+        parser.error("--recorded-only does not start MQTT or CSE components")
+    if (args.bridge or args.with_cse) and not cfg.get("allow_cse_writes", True):
+        parser.error("Team profile is read-only; start without --bridge/--with-cse for offline review")
     if not args.generated_sensors:
         cfg['sensor_file'] = str(args.sensor_file.resolve())
     runtime = ROOT / "runtime" / "demo"
@@ -450,10 +482,14 @@ def main():
             worker = threading.Thread(target=bridge.run, name="mqtt-cse-bridge", daemon=True)
             worker.start()
         demo = Demo(cfg, bridge)
-        demo.start()
+        if not args.recorded_only:
+            demo.start()
         server = make_server(demo, args.port)
         print(f"Dashboard: http://127.0.0.1:{args.port}", flush=True)
-        print(f"MQTTX: mqtt://{cfg['mqtt']['host']}:{cfg['mqtt']['port']} | MQTT 3.1.1 | subscribe rescuetwin/# (QoS 1)", flush=True)
+        if args.recorded_only:
+            print("Recorded Mission: offline files; no MQTT broker, bridge, or CSE writes. Open /#recorded.", flush=True)
+        else:
+            print(f"Local demo MQTT: mqtt://{cfg['mqtt']['host']}:{cfg['mqtt']['port']} (isolated example)", flush=True)
         print("Ctrl+C stops this demo. Sensor input: recorded file once (unless --generated-sensors was explicitly selected).", flush=True)
         signal.signal(signal.SIGINT, lambda *args: (_ for _ in ()).throw(KeyboardInterrupt()))
         server.serve_forever(poll_interval=0.25)

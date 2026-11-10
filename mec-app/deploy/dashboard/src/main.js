@@ -3,7 +3,7 @@ import { canvasContext, drawFactory2d } from './flatmap.js';
 import { MessageBuffer, agentMetrics, escapeHtml as esc, eventMessage, freshness, matchesReading, readingsCsv, worldToGrid } from './models.js';
 
 const $=id=>document.getElementById(id);
-const pages={overview:'Factory Digital Twin',telemetry:'Sensors & Messages',agents:'Agent Status'};
+const pages={overview:'Factory Digital Twin',telemetry:'Sensors & Messages',agents:'Agent Status',recorded:'Recorded Mission'};
 const statusLabels={ready:'Ready',moving:'Moving',blocked:'No safe route',arrived:'Arrived'};
 const filterIds={device:'filterDevice',zone:'filterZone',source:'filterSource',sensor:'filterSensor',quality:'filterQuality',freshness:'filterFreshness',search:'filterSearch'};
 const buffer=new MessageBuffer(500);
@@ -167,7 +167,7 @@ function renderAgents(){
   drawFactory2d($('agentMap'),state,{selected:selectedAgent});
 }
 
-function render(){if(!state)return;if(page==='overview')renderOverview();else if(page==='telemetry')renderTelemetry();else renderAgents();}
+function render(){if(!state)return;if(page==='overview')renderOverview();else if(page==='telemetry')renderTelemetry();else if(page==='recorded')renderRecorded();else renderAgents();}
 
 async function poll(){
   if(requestActive)return;requestActive=true;
@@ -229,4 +229,46 @@ $('locateAgent').addEventListener('click',()=>locateAgent());$('goalOnMap').addE
 $('incidentRows').addEventListener('click',async e=>{const b=e.target.closest('[data-incident-ack],[data-incident-retry]');if(!b)return;const ack=b.dataset.incidentAck;b.disabled=true;try{await command(ack?'ack_incident':'retry_incident',{incident_id:ack||b.dataset.incidentRetry});}finally{b.disabled=false;}});
 setInterval(()=>$('clock').textContent=new Date().toLocaleTimeString('en-GB',{hour12:false}),1000);
 window.addEventListener('pagehide',()=>scene?.dispose(),{once:true});
+
+function renderRecorded(){
+  const r=state?.recorded;if(!r)return;
+  const old=$('recordedDrone').value, ids=r.frame.agents.map(a=>a.device_id);
+  if([...$('recordedDrone').options].map(o=>o.value).join(',')!==ids.join(',')){
+    $('recordedDrone').replaceChildren(...ids.map(id=>new Option(id,id)));
+    if(ids.includes(old))$('recordedDrone').value=old;
+  }
+  $('recordedStep').max=r.max_step;$('recordedStep').value=r.step;$('recordedStepLabel').textContent=`${r.step} / ${r.max_step}`;
+  $('recordedSummary').textContent=`Historical replay · ${r.agent_rows} agent rows · ${r.sensor_report.rows} sensor rows · ${r.sensor_report.compatible} compatible with configured A/B contract · ${r.sensor_report.rejected.length} incompatible · No CSE writes`;
+  $('recordedReport').textContent=JSON.stringify(r.sensor_report,null,2);
+  $('recordedWarnings').textContent=r.frame.unclassified_hazards.length?`${r.frame.unclassified_hazards.length} sensor signals have no threshold for their original unit. They are not classified as safe or hazardous. Routes check walls and configured hazards only.`:'Routes use recorded positions and configured hazards. No real flight or fire-safety claim.';
+  const plan=r.plans.find(p=>p.drone_id===$('recordedDrone').value);
+  $('recordedPlanStatus').textContent=plan?`${plan.status}${plan.reason?': '+plan.reason:''}${plan.simulation?' · Round trip simulated; no hardware command':''}`:'Choose a drone and plan a mission.';
+  $('recordedPlanJson').textContent=plan?JSON.stringify(plan,null,2):'';
+  $('recordedSimulate').disabled=!plan||!['planned','return_home'].includes(plan.status);
+  $('recordedRobotTasks').innerHTML=r.robot_task_suggestions.map(t=>`<tr><td>${esc(t.operation)}</td><td>${esc(t.zone_id)}</td><td>${esc(t.goal.join(', '))}</td><td>${esc(t.status==='suggestion_requires_robot_adapter'?'Awaiting robot connection':t.status)}</td></tr>`).join('')||emptyRow(4,'No victim has been reported at this replay step.');
+  const context=canvasContext($('recordedMap'));if(!context)return;
+  const {ctx,w,h}=context,cw=w/r.grid.width,ch=h/r.grid.height;
+  ctx.fillStyle='#f5f8fc';ctx.fillRect(0,0,w,h);
+  for(let y=0;y<r.grid.height;y++)for(let x=0;x<r.grid.width;x++){ctx.fillStyle=['#eef6ff','#f0faf1','#fff8ec'][Math.floor(x/10)];ctx.fillRect(x*cw,y*ch,cw-1,ch-1);}
+  ctx.fillStyle='#65768b';for(const [x,y]of r.grid.walls)ctx.fillRect(x*cw,y*ch,cw,ch);
+  for(const hazard of r.frame.hazards){ctx.fillStyle='#fca5a580';ctx.fillRect((hazard.x-2)*cw,(hazard.y-2)*ch,5*cw,5*ch);}
+  if(plan?.outbound){ctx.strokeStyle='#15803d';ctx.lineWidth=3;ctx.beginPath();plan.outbound.forEach(([x,y],i)=>{const px=(x+.5)*cw,py=(y+.5)*ch;i?ctx.lineTo(px,py):ctx.moveTo(px,py);});ctx.stroke();}
+  for(const [rows,color]of [[r.frame.nodes,'#bd7b16'],[r.frame.victims,'#dc2626'],[r.frame.agents,'#2563eb']])for(const item of rows){ctx.fillStyle=color;ctx.beginPath();ctx.arc((item.x+.5)*cw,(item.y+.5)*ch,Math.min(cw,ch)*.32,0,Math.PI*2);ctx.fill();ctx.font='11px Segoe UI';const label=item.kind==='victim_found'?'Victim':item.device_id;ctx.fillText(label,Math.max(4,Math.min(w-ctx.measureText(label).width-4,(item.x+.8)*cw)),Math.max(12,(item.y+.3)*ch));}
+}
+
+for(const [id,kind]of [['recordedSensors','sensors'],['recordedAgents','agents']])$(id).addEventListener('change',async e=>{
+  const file=e.target.files[0];if(!file)return;
+  if(file.size>4*1024*1024){toast('Choose a file up to 4 MiB.');return;}
+  e.target.disabled=true;
+  try{const response=await fetch('/api/upload/'+kind,{method:'POST',headers:{'Content-Type':'application/json'},body:await file.text(),signal:AbortSignal.timeout(15000)});const data=await response.json();if(!response.ok)throw new Error(data.error||'Upload failed');await poll();toast('File loaded. Original values and times retained.');}catch(error){toast(error.message);}finally{e.target.disabled=false;e.target.value='';}
+});
+$('recordedStep').addEventListener('change',e=>command('recorded_seek',{step:Number(e.target.value)}));
+$('recordedDrone').addEventListener('change',()=>renderRecorded());
+$('recordedPlanForm').addEventListener('submit',async e=>{
+  e.preventDefault();const x=$('recordedGoalX').value,y=$('recordedGoalY').value;
+  if((x==='')!==(y==='')){toast('Enter both goal coordinates, or leave both empty for automatic planning.');return;}
+  await command('drone_plan',{drone_id:$('recordedDrone').value,goal:x===''?null:[Number(x),Number(y)],battery:Number($('recordedBattery').value)});
+});
+$('recordedSimulate').addEventListener('click',()=>{const p=state?.recorded?.plans.find(p=>p.drone_id===$('recordedDrone').value);if(p)command('drone_simulate',{drone_id:p.drone_id,plan_id:p.plan_id});});
+
 routePage();setInterval(poll,700);poll();

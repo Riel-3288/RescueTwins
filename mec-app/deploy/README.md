@@ -2,10 +2,10 @@
 
 # RescueTwins MQTT / MEC Integration
 
-本模块包含 MQTT Bridge、MEC-IPE、部署模板，以及本地工厂模拟器和英文 2D/3D Dashboard。
+本模块包含团队 oneM2M MQTT 文件上传、MEC 接入、drone 记录回放和路线预览，以及隔离的本地工厂演示。
 传感器消息使用团队约定的八个字段。
 
-Dashboard 包含 Factory Overview、Sensors & Messages 和 Agent Status 三个页面，支持
+Dashboard 包含 Recorded Mission、Factory Overview、Sensors & Messages 和 Agent Status 四个页面，支持
 传感器筛选、JSON 检查、CSV 导出、agent 路线与目标编辑。3D 地图使用同一套二维模拟数据。
 
 ## 本地启动（不需要 Docker）
@@ -16,11 +16,11 @@ Dashboard 包含 Factory Overview、Sensors & Messages 和 Agent Status 三个�
 powershell -ExecutionPolicy Bypass -File .\start-demo.ps1
 ~~~
 
-打开 http://127.0.0.1:8765 。默认启动本机 MQTT Broker（18883）、ACME A/B/IN 与 Bridge。
-保留启动终端；Ctrl+C 停止服务。
+打开 http://127.0.0.1:8765/#recorded。默认只启动文件回放网页，不启动 MQTT Broker、bridge 或 CSE。
 
-MQTTX 连接 mqtt://127.0.0.1:18883，MQTT 3.1.1，用户名/密码留空，本机开发连接不启用 TLS。
-点击右上角 **Connect**，确认连接建立后，再订阅 rescuetwin/#（QoS 1）。
+启动参数 `-Mode Recorded|Swarm|SwarmHeadless|LocalDemo|LocalCse` 对应文件回放、Sariel 动画、无动画基准、旧本地演示、旧本地 CSE 演示。详细命令、依赖、API 请求/响应和未完成项见 [组员交接说明](docs/team-collaboration.md#2026-11-10-selina-交接)。
+
+团队链路直接使用 oneM2M MQTT binding；普通 rescuetwin topic 与 bridge 仅保留用于旧隔离演示。smoke_raw/co_raw 已统一为 mV，原始数值不换算。
 
 ## 指南
 
@@ -83,3 +83,10 @@ If an older demo freezes during task dispatch, open a new PowerShell terminal an
 then start the demo again. The helper checks command-line ownership of the demo ports before stopping
 anything and keeps all database files. Use `-WhatIf` to preview its targets. MQTT publication now runs
 on a separate worker so broker callbacks cannot deadlock the simulation lock.
+
+
+## Team recordings and drone integration
+
+Use [the recorded mission workflow](docs/simulator-mqttx-guide.md#recorded-json-integration-and-drone-missions) for uploaded sensor JSON/JSONL and the current `simulation/sim_agent_log.jsonl`. It preserves the original three-zone grid and timestamps, adds offline drone inspection/patrol routing, round-trip/energy checks, and exports robot task suggestions. Launch with `python -m rescuetwin.demo --config config.team.example.json --recorded-only`, then open `http://127.0.0.1:8765/#recorded`.
+
+`python -m rescuetwin --config config.team.example.json check-team` checks the supplied Mobius transit reads and MEC013 without registration or writes. Team CSE access from this computer is still unverified (timeouts on 2026-11-10); MEC Location v3 was reachable. Smoke/CO mV units are aligned; hazard thresholds, zone C routing, independent AE/ACP permissions, robot feedback and UE mapping remain explicit integration gaps. This feature does not claim real-time flight or live migration.

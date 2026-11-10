@@ -4,54 +4,29 @@
 和本地演示 CSE 均可在 Windows / Python 3.13 上运行，不需要 Docker。
 本模块的 demo 放在 Selina 负责的目录中，未修改队友的 simulation/、twin/ 或 cse-config/。
 
-## 一次启动
+## 运行方式
 
-在 VS Code 的 PowerShell 终端中，从仓库根目录执行：
-
-```powershell
-cd mec-app/deploy
-powershell -ExecutionPolicy Bypass -File .\start-demo.ps1
-```
-
-首次运行会创建本目录 `.venv` 并安装 `requirements-demo.txt`。看到 `Dashboard:` 后，打开
-http://127.0.0.1:8765 。请保留终端；按 Ctrl+C 会停止程序及它启动的子进程。
-
-默认启动以下本地服务：
-
-| 服务 | 地址 |
-|---|---|
-| Dashboard / HTTP API | http://127.0.0.1:8765 |
-| MQTT Broker（aMQTT，开发用） | 127.0.0.1:18883 |
-| MN-CSE A（ACME） | http://127.0.0.1:18001/~/id-mn-a/cse-mn-a |
-| MN-CSE B（ACME） | http://127.0.0.1:18002/~/id-mn-b/cse-mn-b |
-| IN-CSE（ACME） | http://127.0.0.1:18000/~/id-in/cse-in |
-
-这套快捷演示的 IN-CSE 单独启动，**未开启 MN→IN 的 Mcc 注册**；数据按 A/B 写入对应 MN。
-使用 `runtime/demo/` 中独立的 CSE 配置、数据库、日志和 bridge.sqlite，不改队友的正式 CSE。
-此开发入口只监听 loopback，MQTT 无账号且无 TLS，供同一电脑的 MQTTX 使用；真实 ESP32
-或 shared VM 接入时，使用项目的 TLS 部署并填写可达 Broker 地址。
-
-若只需要 MQTT + 网页：
+使用 Python 3.13，在本目录运行统一入口。默认是团队文件回放，不启动 Broker、bridge 或 CSE：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\start-demo.ps1 -WithoutCse
+powershell -ExecutionPolicy Bypass -File .\start-demo.ps1 -Mode Recorded
 ```
 
-若已有 18883 Broker（例如 Compose 里的 Mosquitto），不要再启动第二个：
+打开 http://127.0.0.1:8765/#recorded，上传或使用当前 simulation 目录的记录。该模式用 requirements.txt；首次运行自动安装缺少的依赖。Ctrl+C 关闭网页服务。
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\start-demo.ps1 -ExistingBroker -WithoutCse
-```
+| Mode 参数 | 用途 | 依赖 | 边界 |
+|---|---|---|---|
+| Recorded（默认） | 上传 JSON/JSONL、回放、drone 规划、导出 robot 任务建议 | requirements.txt | 离线，不发设备指令 |
+| SwarmHeadless | Sariel 原脚本的 random/swarm 基准及 JSONL 导出 | requirements-simulation.txt | 三架 drone；会重新生成 simulation 中的两个输出文件 |
+| Swarm | 同上，随后打开二维动画 | requirements-simulation.txt | 需要图形桌面；动画前先跑 benchmark |
+| LocalDemo | 旧工厂四 agent 演示及本地 MQTT | requirements-demo.txt | 独立示例，不是团队 oneM2M 接入链路 |
+| LocalCse | 旧工厂演示＋临时本地 ACME A/B/IN | requirements-demo.txt | 验证隔离的 MQTT/HTTP 示例；不是团队 Mobius 环境 |
 
-连接已有的团队环境，先复制并填写 `config.local.json`，再执行：
+例如 `powershell -ExecutionPolicy Bypass -File .\start-demo.ps1 -Mode SwarmHeadless`。`-CheckOnly` 只检查并准备所选模式的依赖。`-WithoutCse` 兼容旧用法，相当于 LocalDemo。
 
-```powershell
-.\.venv\Scripts\python.exe -m rescuetwin --config config.local.json provision
-.\.venv\Scripts\python.exe -m rescuetwin.demo --config config.local.json --bridge
-```
+团队接入仅使用 oneM2M MQTT binding，见后面的交接说明及 native-import。不要向团队 Broker 发布普通 rescuetwin topic，也不要为它启动 bridge/provision。
 
-`provision` 需要对应权限且会检查 AE identity；配置由 CSE 队友确认。`--bridge` 启动一个
-Bridge，使用独立演示 outbox；若已有正在工作的 Bridge，不要再次使用该选项。
+以下 MQTTX 普通 topic 章节仅对应 LocalDemo/LocalCse 的旧隔离演示。其端口为 18883；团队 Broker 则是 10.70.80.245:1883、需要账号，并使用 /oneM2M 请求/响应。
 
 ## MQTTX 逐项配置
 
@@ -96,7 +71,7 @@ MQTTX 使用另一条独立连接，需要在 MQTTX 中点击右上角 **Connect
 | Topic | 用途 |
 |---|---|
 | rescuetwin/A/node-01/temperature | A 区 node-01 温度 |
-| rescuetwin/A/node-02/smoke_raw | A 区 node-02 烟雾 ADC |
+| rescuetwin/A/node-02/smoke_raw | A 区 node-02 烟雾 mV |
 | rescuetwin/B/node-03/temperature | B 区 node-03 温度 |
 | rescuetwin-ack/A/node-01 | Bridge 已将记录写入 CSE 的通知 |
 | rescuetwin-sim/agents/agent-01 | 自有模拟坐标，单位 m；不是 MEC013 API 响应 |
@@ -190,7 +165,7 @@ Ctrl+C，再重新运行 start-demo.ps1，避免同时启动两个 Bridge。
 
 50×30 网格（每格 2m），固定随机种子 7，固定 0.25s 步长。热量/烟雾在非墙体四邻格
 之间离散扩散并衰减，火源持续注入，邻格按简化规则蔓延。无燃料耗尽、通风、燃烧化学、
-建筑热工或真实 CO 浓度模型；ADC 为示例映射，不可换算成 ppm。
+建筑热工或真实 CO 浓度模型；mV 为示例模拟值，不可换算成 ppm。
 路径规划结合模拟地图与简单传感器阈值产生的危险排除区；传感器影响范围是假设值，路径示例仍不是队友的 swarm 算法。
 
 这版不向公共 Sandbox 注入 UE 位置，不将 Monaco UE 自动映射为工厂 agent，也不调用
@@ -261,7 +236,7 @@ Changes in this version:
 
 For actual hardware, retain the agreed eight-field MQTT contract and set `source` to `physical` only for real
 measurements. `rescue.sensor_positions` maps each device to factory coordinates in metres. Defaults use
-60/50 degC for temperature trigger/clear, 2500/2000 ADC for smoke, and 2300/1800 ADC for CO. These are
+60/50 degC for temperature trigger/clear, 2500/2000 mV for smoke, and 2300/1800 mV for CO. These are
 uncalibrated demo thresholds. Invalid, duplicate, older, future (>5s), or stale (>35s) observations cannot start
 or clear an alert. A stale active alert stays active until fresh recovery data arrives.
 
@@ -294,3 +269,59 @@ before exiting. `stop-demo.ps1` remains a forced recovery option for a frozen pr
 If a local CSE fails to start, inspect both `runtime/demo/<zone>.log` and
 `runtime/demo/<zone>/logs/`. ACME errors are now saved even in headless mode. Do not delete the queue or
 the CSE data folders to work around a JSON database error; preserve the files before attempting recovery.
+
+
+## Recorded JSON integration and drone missions
+
+Use this mode for the team files currently uploaded by hand. In `mec-app/deploy`, run:
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 -m rescuetwin.demo --config config.team.example.json --recorded-only
+```
+
+Open http://127.0.0.1:8765/#recorded. This starts the local dashboard without a broker or bridge. It does not connect to the team broker or write to Zihan's CSEs. The original Overview is a separate illustrative 50x30 model; **Recorded Mission uses Sariel's actual 30x20 grid** and does not mix their coordinates.
+
+1. The page initially reads `simulation/sim_agent_log.jsonl` and `simulation/sim_sensor_data.jsonl` without editing them. Upload replacement sensor or agent files using the two file selectors. JSON objects, arrays, JSONL and a `m2m:cin.con` sensor wrapper are accepted, up to 4 MiB. A malformed agent file leaves the previous dataset intact. Data stays in memory for this session; export the mission before restarting.
+2. Move the replay slider. Only positions and victim events at/before that step are visible to the planner. Original UTC times and `physical`/`simulation` provenance stay intact; historical physical data is not labelled live.
+3. Select a drone and optionally enter a target in **grid cells**. With no target, choose an already reported victim or a patrol waypoint. The planner checks walls/configured hazard cells, keeps a return route, and reserves 10 simulated energy units (one per travelled cell). Insufficient energy produces return-home or blocked status. This is a route preview with no altitude/flight dynamics or real battery model.
+4. Simulate the round trip and export Mission JSON. This never sends flight commands or CSE registration requests. Robot tasks are suggestions with no assigned robot; a robot task/acknowledgment adapter is still required. Replay, upload, or a new plan invalidates the previous execution reference.
+
+### Current file compatibility
+
+- `sim_agent_log.jsonl`: 280 entries: 3 nodes, 267 drone positions, 3 victim reports, 7 recorded zone handovers. The log has `drone-A`, `drone-B`, `drone-C`; no separately identified ground robot. These are recorded movements, not proof of CSE or MEC021 handover.
+- `sim_sensor_data.jsonl`: 267 smoke entries in `mV`, covering A/B/C. All can be inspected as recorded data, but 178 A/B records match the updated mV sensor contract; the 89 zone-C records still have no CSE mapping. Do not silently send C to MN-B.
+- `node01_sample.jsonl`: 216 historical physical readings, all 216 now match the agreed mV fields. Compatible rows may be inspected, but uploads are not a claim of current device connectivity.
+- `sample_data.json`: existing 25-row file remains supported. The agreed mV contract accepts 24 rows; one missing timestamp remains rejected.
+- Smoke mV has no agreed hazard threshold. It remains unclassified by the drone planner. Only explicit unit-matched thresholds are used. Do not interpret a wall-clear route as a certified fire-safe flight.
+
+### Team CSE access and independent identities
+
+`config.team.example.json` records the supplied endpoints (IP `10.70.80.245`; MN-A 8001, MN-B 8002, Mobius 7599) with explicit no-HTTP-auth configuration. It keeps the existing TLS production template unchanged. The team profile disables HTTP writes, provisioning and the raw MQTT-to-HTTP bridge. Explicit native-import --send permits only the configured node-01 sensor upload through oneM2M binding. Existing originators are used only in the two documented read-only checks.
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 -m rescuetwin --config config.team.example.json check-team
+```
+
+This writes a local result to `runtime/team-check.json`, returns a failing exit code for incomplete checks, and sends only GET requests. On 2026-11-10, the Location check succeeded; both Mobius transit reads timed out from this computer. Direct MN-A/MN-B checks also timed out. Recheck current IP, same-LAN/VPN routing, service bind address, Windows firewall and running services with Zihan. His localhost verification is separate from connectivity on Selina's computer.
+
+The team broker uses **oneM2M MQTT binding** at `10.70.80.245:1883`. The `native_mqtt` section documents the two supplied accounts and password environment variable names; no passwords are stored. The local dashboard broker remains separate. It is not a bridge into those CSEs. Request/response topics must follow the supplied `/oneM2M/...` structure, with a unique MQTT Client ID and matching `rqi`/successful `rsc`. Independent drone/MEC AEs, their ACPs and a dedicated MQTT account/ACL must be agreed before enabling writes. Do not use the physical node's account for another application. No topic ACL isolation or TLS is asserted for the team's current broker.
+
+### MEC endpoint and IDs
+
+Live service discovery and GET checks on 2026-11-10 confirmed Location at `https://82.112.253.59/sbx42843tk/mep1/location/v3/queries/users` (200); v2 returned 404. The verified v3 root is saved in the team profile. HTTPS validation remains enabled; `system_trust` uses OS trusted roots. Discovered addresses were `10.10.0.1`, `10.1.0.1`, `10.100.0.1`. No address is automatically mapped to a drone or to grid zone A/B/C.
+
+`298b2c0c-7efa-45d3-8b47-8ab3c009b845` belongs to the **Location provider**; `f8a0d2ab-9977-4d71-8c4f-354b4d59fb32` is its service ID. The RescueTwins consumer `app_instance_id` remains empty. Obtain it by creating your own application instance. MEC021 registration, externally reachable callback, two-instance migration and live CSE writes remain pending. JSON upload/replay itself needs no public callback.
+
+Still agree with the team: zone C's CSE routing, mV calibration or unit-specific thresholds, per-drone AE/ACP and broker permissions, UE-to-agent mapping and a coordinate transform, and the real robot's task/feedback interface. Keep these explicit; changing only a zone label does not implement handover.
+
++
++### 本轮 mV 与运行方式验证（2026-11-10）
++
++- 完整 Python 回归：58 passed，3 项本地 ACME 启动/HTTP 超时。停止较重的并行任务后，三项失败测试与 native-import 测试一并复查，8 passed，未修改测试超时或跳过断言。
++- 新增直接 oneM2M MQTT 上传 mV 记录并通过 HTTP 精确读回的本地测试通过；未连接团队 Broker 写入。一次性 native MQTT 客户端使用唯一 Client ID 和临时会话，断开后不保留无用订阅。
++- 前端模型测试 7 passed；Edge 浏览器上传、时间轴、drone 规划/往返、JSON 下载、旧页面和手机布局检查通过。
++- Sariel 原始代码在临时副本运行完整 20 轮 random/swarm 基准，约 58 秒完成，导出 267 条传感器和 280 条 agent 日志。绘图和实际动画回调的前 5 帧检查通过；图形桌面窗口需要组员本地打开。
++- Recorded、SwarmHeadless、LocalCse 依赖入口检查通过。Recorded 的独立网页启动通过；LocalDemo 的本地 MQTT 消息检查通过。LocalCse 的底层真实 ACME/MQTT 互通在回归中验证，未把它视为团队 Mobius 联通。
++- 队友目录 14 个原有文件校验值保持不变。smoke/co 为 mV；有效电压值支持非负小数，无 ADC 计数限制。quality=invalid 的原始无效读数仍按现有规则保留，不冒充有效测量。
++- Hosted Location/RNIS/MEC011 GET 成功；通过团队 Mobius 读取仍超时，MQTT 密码和独立 drone/robot 权限仍待实际环境配置。
++

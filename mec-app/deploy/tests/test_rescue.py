@@ -102,7 +102,7 @@ def test_clear_requires_two_samples_of_the_trigger_channel(tmp_path):
     engine=Rescue({'state_file':str(tmp_path/'queue.sqlite')},Factory(),lambda *args:None)
     engine.ingest(reading(80));engine.ingest(reading(40))
     for n in range(3):
-        cold=reading(90);cold.update(sensor_type='co_raw',unit='adc')
+        cold=reading(90);cold.update(sensor_type='co_raw',unit='mV')
         engine.ingest(cold)
     assert engine.incidents[0]['status']=='active'
     engine.ingest(reading(39))

@@ -47,29 +47,40 @@ def bridge_owner(path):
 def native_cin(config, originator, cse_id, target, reading):
     """oneM2M MQTT binding (TS-0010); distinct from raw MQTT + HTTP bridge."""
     request_id = uuid.uuid4().hex
-    client = make_client(config, "native-" + originator)
+    client = make_client(config, "native-" + originator + "-" + uuid.uuid4().hex[:12], clean_session=True)
     ready, reply = threading.Event(), threading.Event()
     responses = []
     response_topic = f"/oneM2M/resp/{originator}/{cse_id.strip('/')}/json"
     def on_message(c, userdata, msg):
-        value = json.loads(msg.payload)
-        if value.get("rqi") == request_id:
-            responses.append(value)
-            reply.set()
+        try:
+            if msg.topic != response_topic or msg.retain or len(msg.payload) > 65536:
+                return
+            value = json.loads(msg.payload)
+            if isinstance(value, dict) and value.get("rqi") == request_id:
+                responses.append(value)
+                reply.set()
+        except (ValueError, TypeError, UnicodeDecodeError):
+            return
     client.on_message = on_message
-    client.on_subscribe = lambda *args: ready.set()
+    subscription_failed = []
+    def subscribed(c, userdata, mid, reasons, properties):
+        subscription_failed.extend(r for r in reasons if r.is_failure)
+        ready.set()
+    client.on_subscribe = subscribed
     try:
         connect(client, config)
         client.subscribe(response_topic, qos=1)
-        if not ready.wait(5):
-            raise RuntimeError("native MQTT response subscription timed out")
+        if not ready.wait(5) or subscription_failed:
+            raise RuntimeError("native MQTT response subscription failed or timed out")
         primitive = {"op": 1, "fr": originator, "to": target, "rqi": request_id, "rvi": "4", "ty": 4,
                      "pc": {"m2m:cin": {"con": canonical(reading), "cnf": "application/json:0"}}}
-        client.publish(f"/oneM2M/req/{originator}/{cse_id.strip('/')}/json", canonical(primitive), qos=1)
+        result = client.publish(f"/oneM2M/req/{originator}/{cse_id.strip('/')}/json", canonical(primitive), qos=1, retain=False)
+        if result.rc != mqtt.MQTT_ERR_SUCCESS:
+            raise RuntimeError("native MQTT request could not be queued")
         if not reply.wait(10):
             raise RuntimeError("native MQTT CSE response timed out")
         response = responses[0]
-        if not 2000 <= response.get("rsc", 0) < 3000:
+        if type(response.get("rsc")) is not int or response["rsc"] != 2001:
             raise RuntimeError(f"native MQTT CSE returned {response.get('rsc')}")
         return response
     finally:
@@ -77,9 +88,9 @@ def native_cin(config, originator, cse_id, target, reading):
         client.loop_stop()
 
 
-def make_client(config, client_id, manual_ack=False):
+def make_client(config, client_id, manual_ack=False, clean_session=False):
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id,
-                         clean_session=False, manual_ack=manual_ack)
+                         clean_session=clean_session, manual_ack=manual_ack)
     if config.get("ca_file"):
         context = ssl.create_default_context(cafile=config["ca_file"])
         context.minimum_version = ssl.TLSVersion.TLSv1_2
@@ -124,6 +135,8 @@ def publish(config, reading, device_config):
 
 class Bridge:
     def __init__(self, config, store=None):
+        if not config.get("allow_cse_writes", True):
+            raise ValueError("Team profile disables the raw-topic HTTP bridge; team broker uses oneM2M binding")
         self.config = config
         self.store = store or Store(config["state_file"])
         self.stop = threading.Event()

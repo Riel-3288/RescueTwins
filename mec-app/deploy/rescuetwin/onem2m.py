@@ -24,7 +24,7 @@ class Cse:
         self.session.trust_env = False
         self.verify = endpoint.get("ca_file") or True
         self.cert = (endpoint["cert_file"], endpoint["key_file"]) if endpoint.get("cert_file") else None
-        self.token = os.getenv(endpoint.get("token_env", "CSE_TOKEN"))
+        self.token = None if endpoint.get("auth") == "none" else os.getenv(endpoint.get("token_env", "CSE_TOKEN"))
         self.timeout = endpoint.get("timeout_s", 8)
 
     def call(self, method, path="", body=None, ty=None, allowed=(200, 201)):
@@ -78,7 +78,8 @@ class Cse:
             return found
 
     def latest(self, path):
-        return json.loads(self.call("GET", path + "/la")["m2m:cin"]["con"])
+        value = self.call("GET", path + "/la")["m2m:cin"]["con"]
+        return json.loads(value) if isinstance(value, str) else value
 
     def entries(self, path):
         # Discover all retained command CINs; reading only /la loses queued commands.

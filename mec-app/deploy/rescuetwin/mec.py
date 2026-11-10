@@ -4,6 +4,7 @@ import json
 import logging
 import math
 import os
+import ssl
 import time
 from datetime import datetime, timezone
 
@@ -15,11 +16,22 @@ from .onem2m import Cse, CseError
 LOG = logging.getLogger(__name__)
 
 
+class SystemTrustAdapter(requests.adapters.HTTPAdapter):
+    """Use OS trust roots (including Windows roots), with full TLS validation."""
+    def build_connection_pool_key_attributes(self, request, verify, cert=None):
+        host, pool = super().build_connection_pool_key_attributes(request, verify, cert)
+        if verify is True:
+            pool['ssl_context'] = ssl.create_default_context()
+        return host, pool
+
+
 class Mec:
     def __init__(self, config, require_tls=True):
         self.config = config
         self.session = requests.Session()
         self.session.trust_env = False
+        if config.get("system_trust"):
+            self.session.mount("https://", SystemTrustAdapter())
         for key in ("location_url", "rnis_url", "app_support_url", "ams_url", "sandbox_control_url"):
             if config.get(key) and require_tls and not config[key].startswith("https://"):
                 raise ValueError("require_tls=true requires HTTPS MEC services")
@@ -27,7 +39,7 @@ class Mec:
     def call(self, url, method="GET", body=None, params=None):
         if not url:
             raise ValueError("MEC service URL is not configured")
-        token = os.getenv(self.config.get("token_env", "MEC_TOKEN"))
+        token = None if self.config.get("auth") == "none" else os.getenv(self.config.get("token_env", "MEC_TOKEN"))
         headers = {"Accept": "application/json"}
         if token:
             headers["Authorization"] = "Bearer " + token

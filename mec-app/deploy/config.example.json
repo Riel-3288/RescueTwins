@@ -89,15 +89,18 @@
     "thresholds": {
       "temperature": {
         "trigger": 60,
-        "clear": 50
+        "clear": 50,
+        "unit": "degC"
       },
       "smoke_raw": {
         "trigger": 2500,
-        "clear": 2000
+        "clear": 2000,
+        "unit": "mV"
       },
       "co_raw": {
         "trigger": 2300,
-        "clear": 1800
+        "clear": 1800,
+        "unit": "mV"
       }
     }
   }
