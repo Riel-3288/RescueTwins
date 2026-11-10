@@ -275,3 +275,85 @@ broker Service 默认 ClusterIP。让硬件访问前，需主办方提供合适�
 确实存在。该版本标为 v0.0.0，日期为 2026-06-05，仍含草稿内容。
 优先按 §5.2 启动并注册平台、§5.3 接入设备、§5.4 部署 MEC application，再验证 §5.5 handover。
 官方资料入口与真实环境接入步骤见 [模拟器与 MQTTX 指南](simulator-mqttx-guide.md)。
+
+
+## 录制数据输入和部署验收（2026-11-07）
+
+范围为本仓库 mec-app/deploy；simulation/sample_data.json 只读取。在线 schedule 只读。
+
+## 数据入口
+
+默认数据是根目录 simulation/sample_data.json（25 条）。14 条符合当前八字段协议；11 条被隔离：10 条 smoke_raw/co_raw 单位 mV，与约定 adc 不同；1 条 observed_at 缺失。保留原 source、数值、单位与历史 UTC，不把文件里的 physical 标记当作实时物理设备在线证据。请由数据/协议负责人确认 mV 标定或更新协议；本模块不擅自换算。
+
+从 mec-app/deploy 的 PowerShell 执行：
+
+```powershell
+.\.venv\Scripts\python.exe -m rescuetwin samples
+.\.venv\Scripts\python.exe -m rescuetwin replay-samples --skip-invalid
+```
+
+samples 只写报告，不连接 CSE。replay-samples 默认整批拒绝有错误的输入；--skip-invalid 明确选择兼容行，并把拒绝记录一并保存在报告。资源名稳定，重跑按精确 CIN 读回去重；中途失败报告 complete=false，修复后重跑同文件。
+
+start-demo.ps1 仍启动既有地图/agent 模型，但 sensor 读数默认改为该文件的一次性输入，等 MQTT 就绪后发送，不改时间、不轮询文件、不再自动生成温度/烟雾。缺失/不兼容行显示在 dashboard 状态响应的 sensor_input 中。程序生成传感器仅供显式选择 --generated-sensors 的示意实验；该模式与录制输入分开。
+
+## Week 4 验收边界
+
+| 清单任务 | 本轮代码 | 真实环境验收 |
+|---|---|---|
+| 双向 MEC↔oneM2M | requests CIN 的 configure_mobility 对已配置 AMS registration 执行 PUT，再写 responses CIN；只接受已映射 UE，不允许命令改变目标 app/service ID | 待真实 app_instance_id、mobility_service_id、ams_url 与权限。受控 API 验证不等于在线 AMS 完成 |
+| 网络延迟/丢包 | network-experiment 读取 active 场景的唯一 netChar，先保存原值，逐组设置并测量，finally 恢复原值；恢复失败保留 restored=false | 需要 Sandbox Control 权限与真实流量经过仿真网络的证据。traffic_path_verified 默认 false，不能把 localhost RTT 标成网络仿真效果 |
+| IN-CSE 延迟对照（Must） | benchmark-samples 使用同一 sample 原文，交替测 edge A 和真正 VIA_IN 转发到 MN-A 的 CIN 创建+精确读回；每组保存失败、median/p95，禁止独立 IN 存储代替 VIA_IN | 需要真实 Mcc 注册、路由和跨 CSE originator；本地 ACME 三进程验证只证明本地集成 |
+| CSE+MQTT TLS | 复用并实测既有 HTTPS CSE、token、MQTT 双向证书以及错误 CA/无身份拒绝测试 | 需要正式主机的 SAN、证书、token/ACP 和端口。实验室测试不等于两台 MEC host 已部署 |
+| 11 月 8 日冻结 | 操作指南、测试和可重现输入已补；只改 Selina 文件 | 未取得现场证据前，不将整个 milestone 标 Done |
+
+## 真正经过 IN 的相同数据测试
+
+在私有 config.local.json 中明确配置（示例身份需按实际注册核对）：
+
+```json
+"VIA_IN": {
+  "base_url": "http://127.0.0.1:18000/~/id-mn-a/cse-mn-a",
+  "originators": {"node-01": "/id-mn-a/CNode01"}
+}
+```
+
+生产配置保持 require_tls=true，VIA_IN 也用 HTTPS 与可信 ca_file。不要关闭验证来通过检查。
+
+```powershell
+.\.venv\Scripts\python.exe -m rescuetwin --config config.local.json benchmark-samples --skip-invalid --count 3
+```
+
+这是同负载存储请求往返（创建+读回），不冒充 ESP32→告警全链路时延。源数据的 mV 烟雾/CO 不能在缺少标定时当 ADC 告警阈值输入。
+
+## 双向 AMS 配置
+
+在 mec 下配置 ams_url、已注册的 mobility_service_id、app_instance_id；agents 中必须已映射 UE address。然后提交：
+
+```powershell
+.\.venv\Scripts\python.exe -m rescuetwin --config config.local.json command configure_mobility --address <已映射UE>
+.\.venv\Scripts\python.exe -m rescuetwin --config config.local.json ipe --once
+```
+
+只对配置中的 registration 更新 tracked UE，先 GET 核对 registration 所属 app；保留既有 tracked UE 及迁移状态，仅给新增 UE 设置 contextTransferState=0，不回报迁移完成。command_id 与持久化结果去重；HTTP 错误写成失败响应，排查后使用新 command_id 重试。真实 AMS 仍须先完成 READY/注册。
+
+## 有权限的网络实验
+
+mec.sandbox_control_url 指向当前实例的实际 sandbox-ctrl/v1。工具在修改前读取 /active，只有匹配 element 的唯一 name+netChar 可被确认时才执行，否则停止。不要把上次场景值当作当前基线。
+
+```powershell
+.\.venv\Scripts\python.exe -m rescuetwin --config config.local.json network-experiment --element <实际元素名> --element-type EDGE --case 0,0 --case 20,1 --case 80,5 --skip-invalid
+```
+
+报告包含原 netChar、每组 benchmark、恢复结果。异常时也尝试恢复；强制杀进程/断电无法保证 finally，届时按已保存的 baseline 人工恢复，禁止盲目归零。
+
+## 验证
+
+使用 requirements-test.txt 锁定的 ACME 2026.5.3、amqtt 0.11.3；未降级团队版本。
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+测试结果在下方说明；部署清单尚未全部验收。
+
+本轮结果：完整回归 46 passed；AMS 合并更新后的最终 Week 4 复核 5 passed；写回 Desktop 后使用该项目自身环境再次运行 Week 4 + TLS，6 passed。队友和 sample 原文件共 11 项 SHA-256 全部一致。测试包含本地真实 Broker/CSE/Mcc，MEC 写操作与网络恢复使用受控接口；未修改线上平台、未提交或推送。

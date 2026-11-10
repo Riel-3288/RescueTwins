@@ -163,3 +163,110 @@ def test_mqtt_cse_outage_recovers_from_durable_outbox(live, tmp_path):
     finally:
         bridge.stop.set()
         worker.join(10)
+
+
+import copy
+import json
+from pathlib import Path
+from unittest.mock import Mock
+
+import pytest
+
+from rescuetwin.core import load_config
+from rescuetwin.__main__ import sample_plan, replay, benchmark_samples, network_experiment, DEFAULT_SAMPLES
+from rescuetwin.mec import Ipe, Mec
+from rescuetwin.onem2m import Cse
+
+
+def recorded_config():
+    return load_config(Path(__file__).resolve().parents[1]/'config.example.json')
+
+
+def test_actual_sample_data_is_preserved_and_incompatible_rows_reported():
+    cfg=recorded_config(); before=DEFAULT_SAMPLES.read_bytes(); plan=sample_plan(DEFAULT_SAMPLES,cfg)
+    assert (plan['input_rows'],len(plan['accepted']),len(plan['rejected'])) == (25,14,11)
+    raw=json.loads(before)
+    assert all(value == raw[index] for index,value in plan['accepted'])
+    assert DEFAULT_SAMPLES.read_bytes()==before
+    with pytest.raises(ValueError):replay(cfg,plan,factory=Mock())
+
+
+def test_demo_file_input_is_once_only_and_does_not_replace_timestamps():
+    from rescuetwin.demo import Demo
+    cfg=recorded_config();cfg['sensor_file']=str(DEFAULT_SAMPLES)
+    demo=Demo(cfg)
+    assert demo.next_sensor_readings()==[]
+    demo.connected=True;demo.mqtt_ready.set()
+    rows=demo.next_sensor_readings()
+    assert len(rows)==14 and rows[0]['observed_at']=='2026-11-01T22:08:30Z'
+    assert demo.next_sensor_readings()==[]
+
+
+def test_network_baseline_restored_after_measurement_failure(tmp_path):
+    mec=Mock(); baseline={'latency':7,'latencyVariation':2,'packetLoss':.5,'throughput':50}
+    mec.call.return_value={'nodes':[{'name':'edge-a','netChar':baseline}]}
+    def fail(i):raise RuntimeError('probe failed')
+    with pytest.raises(RuntimeError):
+        network_experiment(mec,'https://sandbox.example/control','edge-a','EDGE',[(20,1)],fail,tmp_path/'result.json')
+    calls=mec.call.call_args_list
+    assert calls[-1].args[2]['eventNetworkCharacteristicsUpdate']['netChar']==baseline
+    assert json.loads((tmp_path/'result.json').read_text())['restored']
+    before=len(calls)
+    with pytest.raises(ValueError):
+        network_experiment(mec,'https://sandbox.example/control','edge-a','EDGE',[(0,101)],fail,tmp_path/'bad.json')
+    assert len(mec.call.call_args_list)==before+1  # GET only; no mutation
+
+
+def test_recorded_samples_replay_and_real_mcc_measurement(live,tmp_path):
+    cfg=copy.deepcopy(live)
+    cfg['cse']['VIA_IN']['originators']={'node-01':'/id-mn-a/CNode01'}
+    plan=sample_plan(DEFAULT_SAMPLES,cfg)
+    result=replay(cfg,plan,True)
+    assert result['complete'] and len(result['events'])==14
+    assert replay(cfg,plan,True)['complete']
+    output=tmp_path/'matched.csv'
+    report=benchmark_samples(cfg,plan,1,output,True)
+    assert report['complete']
+    assert report['paths']['A']['successes']==14 and report['paths']['VIA_IN']['successes']==14
+    assert len(output.read_text().splitlines())==29
+    no_route=copy.deepcopy(cfg);no_route['cse'].pop('VIA_IN')
+    with pytest.raises(ValueError):benchmark_samples(no_route,plan,1,tmp_path/'bad.csv',True)
+
+
+def test_onem2m_command_really_updates_mec_configuration(live,tmp_path):
+    import threading
+    from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
+    requests=[]
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            body=dict(appMobilityServiceId='fixture-service',serviceConsumerId=dict(appInstanceId='fixture-app'),
+                deviceInformation=[dict(appMobilityServiceLevel=3,associateId=dict(type=1,value='existing-ue'),contextTransferState=1)])
+            raw=json.dumps(body).encode();self.send_response(200);self.send_header('Content-Type','application/json')
+            self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
+        def do_PUT(self):
+            body=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+            requests.append((self.path,body))
+            raw=json.dumps(body).encode();self.send_response(200);self.send_header('Content-Type','application/json')
+            self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
+        def log_message(self,*args):pass
+    server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
+    thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+    cfg=copy.deepcopy(live);cfg['ipe_state_file']=str(tmp_path/'commands.sqlite')
+    cfg['ipe_zone']='B'  # independent request queue from the existing shared-fixture tests
+    cfg['mec'].update(ams_url=f'http://127.0.0.1:{server.server_port}/amsi/v1',
+                      app_instance_id='fixture-app',mobility_service_id='fixture-service')
+    try:
+        ipe=Ipe(cfg)
+        command={'command_id':'week4-configure','operation':'configure_mobility','address':'10.10.0.1'}
+        ipe.cse.cin('/mec-ipe/requests',command)
+        ipe.commands();ipe.commands()
+        assert len(requests)==1
+        assert requests[0][0]=='/amsi/v1/app_mobility_services/fixture-service'
+        assert requests[0][1]['deviceInformation'][0]['contextTransferState']==1
+        assert requests[0][1]['deviceInformation'][1]['contextTransferState']==0
+        responses=[json.loads(c['con']) for c in ipe.cse.entries('/mec-ipe/responses')]
+        assert any(r['command_id']=='week4-configure' and r['ok'] for r in responses)
+        count=len(requests)
+        ipe.cse.cin('/mec-ipe/requests',dict(command,command_id='week4-bad',address='unknown'))
+        ipe.commands();assert len(requests)==count
+    finally:server.shutdown();server.server_close();thread.join(5)

@@ -58,6 +58,22 @@ class Demo:
         self.telemetry_gate = TelemetryGate()
         self.rescue = Rescue(config, self.factory, self.publish, bridge)
         self.executor = LocalExecutor(self.factory, self.rescue, self.publish)
+        self.file_rows = None
+        self.file_report = None
+        if config.get('sensor_file'):
+            from .__main__ import sample_plan
+            self.file_report = sample_plan(config['sensor_file'],config)
+            self.file_rows = [r for _,r in self.file_report['accepted']]
+            LOG.warning('Recorded sensor file: %s accepted, %s incompatible; original timestamps retained',
+                        len(self.file_rows),len(self.file_report['rejected']))
+
+    def next_sensor_readings(self):
+        if self.file_rows is None:
+            return self.factory.readings()
+        if not self.connected or not self.mqtt_ready.is_set():
+            return []
+        rows,self.file_rows = self.file_rows,[]
+        return rows
 
     def on_connect(self, client, userdata, flags, reason, properties):
         with self.lock:
@@ -163,16 +179,17 @@ class Demo:
                     crossings.extend(self.factory.step())
                 self.executor.tick()
                 # Fixed wall-clock telemetry cadence, independent of simulation speed/pause.
-                readings = self.factory.readings() if now - last_publish >= 1 else []
+                due = now - last_publish >= 1
+                readings = self.next_sensor_readings() if due else []
                 positions = [{"agent_id": a["id"], "x_m": (a["x"] + 0.5) * 2,
                               "y_m": (a["y"] + 0.5) * 2, "zone_id": a["zone"],
                               "source": "simulation", "observed_at": utcnow()}
-                             for a in self.factory.agents] if readings else []
-            if readings:
+                             for a in self.factory.agents] if due else []
+            if due:
                 last_publish = now
             for reading in readings:
                 backlog = self.bridge.stats()['counts'].get('pending', 0) if self.bridge else 0
-                if self.telemetry_gate.accept(reading, backlog):
+                if self.file_rows is not None or self.telemetry_gate.accept(reading, backlog):
                     self.publish(f"rescuetwin/{reading['zone_id']}/{reading['device_id']}/{reading['sensor_type']}", reading)
             for position in positions:
                 self.publish("rescuetwin-sim/agents/" + position["agent_id"], position)
@@ -182,6 +199,9 @@ class Demo:
     def snapshot(self):
         with self.lock:
             value = self.factory.snapshot()
+            value['sensor_input'] = dict(mode='recorded-file' if self.file_rows is not None else 'generated',
+                file=self.config.get('sensor_file'), rejected=self.file_report['rejected'] if self.file_report else [],
+                note='File input preserves source/time; stale records do not assert an online physical sensor.')
             value["mqtt"] = {"connected": self.connected, "host": self.config["mqtt"]["host"],
                              "port": self.config["mqtt"]["port"], "sent": self.sent, "puback": self.acked,
                              "received": self.received, "rejected": self.rejected, "failed": self.failed,
@@ -397,9 +417,14 @@ def main():
     parser.add_argument("--local-broker", action="store_true")
     parser.add_argument("--with-cse", action="store_true", help="Launch isolated local ACME IN/A/B and bridge")
     parser.add_argument("--bridge", action="store_true", help="Connect bridge to CSE endpoints already running in config")
+    from .__main__ import DEFAULT_SAMPLES
+    parser.add_argument('--sensor-file',type=Path,default=DEFAULT_SAMPLES)
+    parser.add_argument('--generated-sensors',action='store_true',help='Explicit opt-in to illustrative generated sensor readings')
     args = parser.parse_args()
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
     cfg = copy.deepcopy(load_config(args.config))
+    if not args.generated_sensors:
+        cfg['sensor_file'] = str(args.sensor_file.resolve())
     runtime = ROOT / "runtime" / "demo"
     runtime.mkdir(parents=True, exist_ok=True)
     cfg["state_file"] = str(runtime / "bridge.sqlite")
@@ -429,7 +454,7 @@ def main():
         server = make_server(demo, args.port)
         print(f"Dashboard: http://127.0.0.1:{args.port}", flush=True)
         print(f"MQTTX: mqtt://{cfg['mqtt']['host']}:{cfg['mqtt']['port']} | MQTT 3.1.1 | subscribe rescuetwin/# (QoS 1)", flush=True)
-        print("Ctrl+C stops this demo and its child processes. Factory starts paused; telemetry remains live.", flush=True)
+        print("Ctrl+C stops this demo. Sensor input: recorded file once (unless --generated-sensors was explicitly selected).", flush=True)
         signal.signal(signal.SIGINT, lambda *args: (_ for _ in ()).throw(KeyboardInterrupt()))
         server.serve_forever(poll_interval=0.25)
     finally:

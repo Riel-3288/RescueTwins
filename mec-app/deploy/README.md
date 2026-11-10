@@ -1,3 +1,5 @@
+> 录制数据输入与验收操作见 [部署指南](docs/deployment-guide.md)。默认 sensor 数据来自根目录 `simulation/sample_data.json`，保留原时间与 source；不兼容记录单独报告。
+
 # RescueTwins MQTT / MEC Integration
 
 本模块包含 MQTT Bridge、MEC-IPE、部署模板，以及本地工厂模拟器和英文 2D/3D Dashboard。

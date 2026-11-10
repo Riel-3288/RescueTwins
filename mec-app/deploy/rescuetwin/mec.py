@@ -20,7 +20,7 @@ class Mec:
         self.config = config
         self.session = requests.Session()
         self.session.trust_env = False
-        for key in ("location_url", "rnis_url", "app_support_url"):
+        for key in ("location_url", "rnis_url", "app_support_url", "ams_url", "sandbox_control_url"):
             if config.get(key) and require_tls and not config[key].startswith("https://"):
                 raise ValueError("require_tls=true requires HTTPS MEC services")
 
@@ -45,6 +45,23 @@ class Mec:
 
     def rnis(self):
         return self.call(self.config["rnis_url"].rstrip("/") + "/queries/rab_info")
+
+    def configure_mobility(self, address):
+        from urllib.parse import quote
+        config = self.config
+        if not config.get('ams_url') or not config.get('mobility_service_id') or not config.get('app_instance_id'):
+            raise ValueError('configure real AMS URL, registered service ID and app instance ID first')
+        url = config['ams_url'].rstrip('/')+'/app_mobility_services/'+quote(config['mobility_service_id'],safe='')
+        body = self.call(url)
+        if body.get('serviceConsumerId',{}).get('appInstanceId') != config['app_instance_id']:
+            raise ValueError('existing mobility registration belongs to a different app')
+        body = __import__('copy').deepcopy(body)
+        body.pop('_links',None)
+        devices = body.setdefault('deviceInformation',[])
+        if not isinstance(devices,list): raise ValueError('invalid existing deviceInformation')
+        if not any(d.get('associateId')==dict(type=1,value=address) for d in devices):
+            devices.append(dict(appMobilityServiceLevel=3,associateId=dict(type=1,value=address),contextTransferState=0))
+        return self.call(url, 'PUT', body)
 
 
 class Ipe:
@@ -124,11 +141,18 @@ class Ipe:
                             data = self.mec.locations(address)
                         elif command.get("operation") == "get_rnis":
                             data = self.mec.rnis()
+                        elif command.get('operation') == 'configure_mobility':
+                            address = command.get('address')
+                            if address not in {a['address'] for a in self.config['agents'].values()}:
+                                raise ValueError('unmapped MEC address')
+                            data = self.mec.configure_mobility(address)
                         else:
-                            raise ValueError("allowed operations: get_location, get_rnis")
+                            raise ValueError("allowed operations: get_location, get_rnis, configure_mobility")
                         response = {"command_id": command_id, "ok": True, "data": data, "completed_at": utcnow()}
                     except ValueError as exc:
                         response = {"command_id": command_id, "ok": False, "error": str(exc)}
+                    except requests.RequestException as exc:
+                        response = {"command_id": command_id, "ok": False, "error": type(exc).__name__}
                     # Save before posting, so a lost CSE response cannot repeat the MEC call.
                     self.store.set("command-response:" + command_id, {"request_digest": digest(command), "response": response})
             self.cse.cin("/mec-ipe/responses", response, digest({"request_ri": cin["ri"]}))
