@@ -1,0 +1,11 @@
+{
+  "host": "REPLACE_WITH_REACHABLE_BROKER_HOST",
+  "port": 1883,
+  "username": "REPLACE_WITH_AUTHORIZED_READER_USERNAME",
+  "password_env": "MEC_READ_MQTT_PASSWORD",
+  "originator": "REPLACE_WITH_AUTHORIZED_READER_ORIGINATOR",
+  "cse_id": "id-mn-zone-a",
+  "target": "/id-mn-zone-a/mn-zone-a/node-01/temperature/la",
+  "rvi": "4",
+  "timeout_s": 10
+}
