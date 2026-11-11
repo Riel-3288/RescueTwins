@@ -357,3 +357,21 @@ mec.sandbox_control_url 指向当前实例的实际 sandbox-ctrl/v1。工具在�
 测试结果在下方说明；部署清单尚未全部验收。
 
 本轮结果：完整回归 46 passed；AMS 合并更新后的最终 Week 4 复核 5 passed；写回 Desktop 后使用该项目自身环境再次运行 Week 4 + TLS，6 passed。队友和 sample 原文件共 11 项 SHA-256 全部一致。测试包含本地真实 Broker/CSE/Mcc，MEC 写操作与网络恢复使用受控接口；未修改线上平台、未提交或推送。
+
+
+## 完整 MEC 平台管理（2026-11-11）
+
+
+Hosted Sandbox 可以选场景、操作模拟UE、调用 API，但不会给你底层主机管理权限。管理完整平台意味着你负责 Ubuntu 主机、Kubernetes、OAuth、管理员角色、场景目录及平台服务，而不只是运行应用容器。
+
+如果以后确实需要：
+
+1. 准备自己可管理的 Ubuntu 实体机或 VM，固定可达地址；本地VM使用其控制台/SSH，远程主机由管理员提供SSH和sudo权限。
+2. 按官方 STF_685 的 deploy/pyinfra/README.md 和 TR-0086 Annex B 安装完整平台，配置自己的 OAuth Client ID/Secret，设置平台管理员并导入场景。不要把个人Hosted Sandbox当成管理员账号。
+3. 部署场景后再验证 MEC011、Location/RNIS、自己的应用实例、CSE/IPE 和通知地址。实际集群namespace从平台查询，不假定所有组件都在default。
+4. 日常查看 kubectl get nodes、kubectl get pods -A；检查对应namespace的service、events和logs；维护场景、证书、注册、数据和平台版本。
+
+Docker Desktop 的 Kubernetes 可用于测试自己的应用清单，但不是完整 ETSI MEC Sandbox。当前文件演示不必先完成平台管理。具体安装以官方文档为准：
+https://labs.etsi.org/rep/mec/etsi-mec-sandbox/-/tree/STF_685/deploy/pyinfra
+
+Docker 端口发布说明：https://docs.docker.com/get-started/docker-concepts/running-containers/publishing-ports/

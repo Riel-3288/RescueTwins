@@ -1,0 +1,51 @@
+# Set the image to the actual pushed image. Create swarm-access/token first.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: swarm-fusion
+  namespace: rescuetwin
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: {app: swarm-fusion}
+  template:
+    metadata:
+      labels: {app: swarm-fusion}
+    spec:
+      nodeSelector:
+        rescuetwin-mec-zone: A
+      containers:
+        - name: swarm
+          image: registry.example.invalid/rescuetwin-swarm:50x30
+          ports:
+            - containerPort: 8780
+          env:
+            - name: SWARM_API_TOKEN
+              valueFrom:
+                secretKeyRef: {name: swarm-access, key: token}
+          readinessProbe:
+            httpGet: {path: /health, port: 8780}
+          livenessProbe:
+            httpGet: {path: /health, port: 8780}
+          resources:
+            requests: {cpu: 100m, memory: 64Mi}
+            limits: {cpu: '1', memory: 256Mi}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: swarm-fusion
+  namespace: rescuetwin
+spec:
+  selector: {app: swarm-fusion}
+  ports:
+    - port: 8780
+      targetPort: 8780

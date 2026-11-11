@@ -1,3 +1,5 @@
+> 2026-11-11 当前版本已改为 50×30、A/B 两区、drone-A/B，并增加独立 MEC swarm-fusion 服务。当前启动与部署以 [README_RUN.md](../README_RUN.md) 为准；下文早期三分区说明保留为历史记录。
+
 # 团队协作与联调
 
 团队仓库：`https://github.com/Riel-3288/RescueTwins`。
@@ -228,3 +230,20 @@ Location provider appInstanceId=298b2c0c-7efa-45d3-8b47-8ab3c009b845；serviceId
 
 
 非 Windows 环境可在 mec-app/deploy 创建 Python 3.13 虚拟环境，安装 requirements.txt 后运行 `python -m rescuetwin.demo --config config.team.example.json --recorded-only`。要运行原仿真，另安装 requirements-simulation.txt，然后运行项目根目录的 `python simulation/rescue_sim.py --no-anim`；不带该参数需要可用图形桌面。
+
+
+## 2026-11-11 本地映射与 robot 更新
+
+演示 UE 映射：drone-A=10.10.0.1、drone-B=10.1.0.1、drone-C=10.100.0.1，见 config.team.example.json 的 mec_recorded_mapping。这是演示约定，不证明与实体无人机的对应关系。
+
+Recorded Mission 的 Read MEC positions 读取 Location 并投影到 30×20 网格；演示边界 south=43.7314、north=43.7514、west=7.4202、east=7.4402，X 向东、Y 向南，越界拒绝。这是未现场标定的线性投影，不改变历史轨迹或 CSE 路由，不用于自动派发。投影结果可能落在仿真墙体上；真实场地需地图控制点校准。
+
+C 区来自 Sariel 的 simulation/rescue_sim.py 第22、44、46行等。当前 CSE 仅 MN-A/B；保留 C 本地仿真，simulation_cse_routing.C=null，不自动把 C 改成 B。
+
+Robot Task Suggestions 新增 Simulate local robot：本地 robot-01 检查路径，产生 accepted/moving/completed 回执及路线。没有发送硬件指令，也没有修改 Sariel 的执行器。反馈入口 POST /api/control，action=robot_feedback，feedback 对象含 task_id、command_id、robot_id、executor=local_robot_simulation、递增 sequence、status 和 position。拒绝错误身份、过期/冲突回执和错误完成位置。切换回放、上传或重启取消未完成任务。本服务仅 loopback，不是外网回调。
+
+27 项坐标/回执/原回放测试通过。浏览器确认本地 robot 完成回执；2026-11-11 最新真实 Location GET 返回404（此前曾200），需在个人 Sandbox 检查运行场景和 Try-it 地址。演示配置可保留，服务恢复后再读取；不能声称实时网络位置已连通。
+
+当前文件回放和 Hosted API 联调不需要 VM。Docker Desktop 可验证自己的容器和本地 Kubernetes，不能直接视为完整 ETSI MEC 平台。若需要平台管理/底层网络仿真，可按 STF_685 部署在可管理 Ubuntu 实体机或 VM；shared VM 只在选用该部署目标或验收明确要求时才必需。
+
+Zihan 排查顺序：确认有线 IP；检查 8001/8002/7599/1883 是否监听可达网卡而不是只有127.0.0.1；用自己LAN IP执行带oneM2M头的GET；检查限定来源的入站防火墙；双方确认同网络可路由或VPN。先 Test-NetConnection 证明 TCP 可达，再查 Originator/ACP，不用改 ACP 解决连接超时。

@@ -1,3 +1,7 @@
+> 2026-11-11 当前版本已改为 50×30、A/B 两区、drone-A/B，并增加独立 MEC swarm-fusion 服务。当前启动与部署以 [README_RUN.md](README_RUN.md) 为准；下文早期三分区说明保留为历史记录。
+
+> 简单启动方法：请先看 [Simulation / Dashboard 快速启动](README_RUN.md)。
+
 > 录制数据输入与验收操作见 [部署指南](docs/deployment-guide.md)。默认 sensor 数据来自根目录 `simulation/sample_data.json`，保留原时间与 source；不兼容记录单独报告。
 
 # RescueTwins MQTT / MEC Integration

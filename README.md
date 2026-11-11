@@ -34,7 +34,7 @@ robot simulations, and a digital-twin web application.
 | Directory | Owner | Contents |
 |---|---|---|
 | `firmware/` | Sariel | ESP32 sensor node code|
-| `simulation/` | Sariel | 2D grid swarm simulation, live + offline run modes, evaluation |
+| `simulation/` | Sariel | 50x30 A/B drone simulation with independent MEC map-fusion client, evaluation |
 | `simulation/onem2m_adapter/` | Zihan | Agent AE adapter (register, post, notifications over HTTP) |
 | `simulation/results/` | Sariel | Evaluation CSVs and trajectory logs (optional) |
 | `mec-app/swarm/` | Sariel | Edge app logic: pheromone map, evaporation, task bidding, sanity checks |
@@ -75,3 +75,7 @@ python -m venv .venv
 The test suite starts temporary real MQTT and ACME CSE instances. MEC API inputs
 come from a local contract fixture. See the [deployment guide](mec-app/deploy/docs/deployment-guide.md)
 for integration boundaries and live deployment acceptance checks.
+
+## Independent MEC swarm app
+
+The 50x30 two-zone drone simulator now supports a separate HTTP map-fusion application. See [run and deployment guide](mec-app/deploy/README_RUN.md). This is locally verified; actual MEC-host deployment still needs a reachable host.
