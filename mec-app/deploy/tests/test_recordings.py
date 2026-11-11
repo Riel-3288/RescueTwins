@@ -21,7 +21,7 @@ def cfg(tmp_path):
 
 def log(step=0, x=1, y=1, kind='position', device='drone-A'):
     return {'kind':kind,'device_id':device,'step':step,'x':x,'y':y,
-            'zone_id':'ABC'[x//10], 'source':'simulation',
+            'zone_id':'AB'[x//25], 'source':'simulation',
             'observed_at':f'2026-11-08T19:41:{21+step:02}Z'}
 
 
@@ -38,13 +38,14 @@ def test_json_jsonl_single_and_wrapped_input():
 def test_latest_team_files_keep_all_zones_and_original_units(cfg):
     m=RecordedMission(cfg)
     m.load_defaults()
-    assert m.report['rows']==267 and m.report['compatible']==178
+    assert m.report['rows']>0 and m.report['compatible']==m.report['rows']
     assert {r['unit'] for r in m.sensors}=={'mV'}
-    assert {r['zone_id'] for r in m.agent_log if 'zone_id' in r}=={'A','B','C'}
-    assert len(m.frame()['agents'])==3 and m.snapshot()['max_step']==88
+    assert {r['zone_id'] for r in m.agent_log if 'zone_id' in r}=={'A','B'}
+    assert len(m.frame()['agents'])==2
+    assert m.grid['width']==50 and m.grid['height']==30
     assert not m.frame()['victims']
-    m.seek(39)
-    assert len(m.snapshot()['robot_task_suggestions'])==3
+    m.seek(m.snapshot()['max_step'])
+    assert len(m.snapshot()['robot_task_suggestions'])==2
     assert m.frame()['unclassified_hazards']
     assert not m.frame()['hazards']
     assert not m.snapshot()['sensor_report']['cse_written']
@@ -65,7 +66,7 @@ def test_no_future_state_or_victim_leaks_into_plan(cfg):
 def test_bad_agent_upload_is_atomic(cfg):
     m=RecordedMission(cfg)
     m.upload('agents',json.dumps(log()))
-    for row in [dict(log(),x=99),log(x=10,y=1),dict(log(),zone_id='B'),dict(log(),step=-1)]:
+    for row in [dict(log(),x=99),log(x=25,y=1),dict(log(),zone_id='B'),dict(log(),step=-1)]:
         with pytest.raises(ValueError):m.upload('agents',json.dumps([row]))
         assert len(m.agent_log)==1 and m.agent_log[0]['x']==1
     with pytest.raises(ValueError):m.upload('agents',json.dumps([log(),log()]))
@@ -90,7 +91,7 @@ def test_round_trip_reserve_and_replanning_invalidate_execution(cfg):
 
 def test_route_detours_and_rejects_hazardous_start_or_goal():
     g=sariel_grid()
-    p=route(g,(9,1),(11,1))
+    p=route(g,(24,1),(26,1))
     assert len(p)>3 and all(list(v) not in g['walls'] for v in p)
     assert not route(g,(1,1),(2,1),{(1,1)})
     assert not route(g,(1,1),(2,1),{(2,1)})

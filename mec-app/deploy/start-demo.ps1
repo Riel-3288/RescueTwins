@@ -1,8 +1,9 @@
 param(
-    [ValidateSet('Recorded','LocalDemo','LocalCse','Swarm','SwarmHeadless')]
+    [ValidateSet('Recorded','LocalDemo','LocalCse','Swarm','SwarmHeadless','SwarmService')]
     [string]$Mode = 'Recorded',
     [switch]$WithoutCse,
     [switch]$ExistingBroker,
+    [switch]$Benchmark,
     [switch]$CheckOnly
 )
 $ErrorActionPreference = 'Stop'
@@ -13,6 +14,11 @@ try {
     if (-not (Test-Path -LiteralPath $demoPython)) {
         py -3.13 -m venv .venv
         if ($LASTEXITCODE -ne 0) { throw 'Python 3.13 is required. Install it and retry.' }
+    }
+    if ($Mode -eq 'SwarmService') {
+        & $demoPython -X utf8 -m rescuetwin.swarm_service
+        if ($LASTEXITCODE -ne 0) { throw 'Swarm service stopped with an error.' }
+        return
     }
     $requirements = 'requirements.txt'
     $moduleList = "('paho', 'requests', 'yaml')"
@@ -34,7 +40,10 @@ try {
     if ($CheckOnly) { Write-Output "Environment ready for $Mode."; return }
     if ($Mode -in @('Swarm','SwarmHeadless')) {
         $simulationScript = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'simulation\rescue_sim.py'
+        if (-not $env:SWARM_MEC_URL) { $env:SWARM_MEC_URL = 'http://127.0.0.1:8780' }
+        Write-Output "Swarm uses independent MEC service: $env:SWARM_MEC_URL"
         $simulationArguments = @('-X','utf8',$simulationScript)
+        if (-not $Benchmark) { $simulationArguments += '--quick' }
         if ($Mode -eq 'SwarmHeadless') { $simulationArguments += '--no-anim' }
         Write-Output 'The simulation runs benchmarks and regenerates its two output JSONL files before animation.'
         & $demoPython @simulationArguments

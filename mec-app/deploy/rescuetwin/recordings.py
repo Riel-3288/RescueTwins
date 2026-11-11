@@ -51,13 +51,11 @@ def sensor_report(rows, config):
 
 def sariel_grid():
     # Matches simulation/rescue_sim.py build_walls; all positions remain GRID CELLS.
-    walls = {(10, y) for y in range(20)} | {(20, y) for y in range(20)}
-    walls -= {(10, y) for y in (4, 5, 14, 15)} | {(20, y) for y in (8, 9, 10)}
-    walls |= {(x, 6) for x in range(2, 8)} | {(x, 13) for x in range(12, 18)}
-    walls |= {(x, 7) for x in range(22, 28)} | {(24, y) for y in range(13, 16)}
-    return {'width': 30, 'height': 20, 'zone_width': 10,
-            'walls': sorted(map(list, walls)), 'coordinates': 'grid_cells',
-            'layout': 'simulation/rescue_sim.py (30 columns x 20 rows)'}
+    walls = {(25,y) for y in range(30) if y not in (4,5,20,21)}
+    walls |= {(x,6) for x in range(2,8)} | {(x,18) for x in range(32,38)}
+    return {'width':50, 'height':30, 'zone_width':25,
+            'walls':sorted(map(list,walls)), 'coordinates':'grid_cells',
+            'layout':'simulation/rescue_sim.py (50 columns x 30 rows; zones A/B)'}
 
 
 def route(grid, start, goal, blocked=()):
@@ -110,14 +108,14 @@ class RecordedMission:
                     if type(row.get('step')) is not int or row['step'] < 0:
                         raise ValueError('Agent log requires a nonnegative integer step')
                 if row['kind'] == 'handover':
-                    if any(row.get(k) not in ('A', 'B', 'C') for k in ('from_zone', 'to_zone')):
+                    if any(row.get(k) not in ('A', 'B') for k in ('from_zone', 'to_zone')):
                         raise ValueError('Invalid handover zone')
                 else:
                     if any(type(row.get(k)) is not int for k in ('x', 'y')):
                         raise ValueError('Grid coordinates must be integers')
                     if not (0 <= row['x'] < self.grid['width'] and 0 <= row['y'] < self.grid['height']):
                         raise ValueError('Coordinates outside the Sariel grid')
-                    if row.get('zone_id') != 'ABC'[row['x']//self.grid['zone_width']]:
+                    if row.get('zone_id') != 'AB'[row['x']//self.grid['zone_width']]:
                         raise ValueError('zone_id differs from the grid position')
                     if row['kind'] in ('node', 'position') and [row['x'],row['y']] in self.grid['walls']:
                         raise ValueError('Node or drone position is inside a wall')
@@ -175,7 +173,7 @@ class RecordedMission:
                     continue
                 if set(row) != FIELDS or row['source'] not in ('physical', 'simulation'):
                     continue
-                if row['zone_id'] not in ('A', 'B', 'C') or row['sensor_type'] not in UNITS:
+                if row['zone_id'] not in ('A', 'B') or row['sensor_type'] not in UNITS:
                     continue
                 value = row.get('value')
                 if row['quality'] != 'valid' or type(value) not in (int, float, bool) or not math.isfinite(value):
@@ -227,8 +225,8 @@ class RecordedMission:
             # Known victims only; no undiscovered future victim coordinates enter the planner.
             targets = [(r['x'],r['y']) for r in frame['victims']]
             if not targets:
-                zone = 'ABC'.index(agent['zone_id'])
-                targets = [(zone*10+8, 2), (zone*10+8, 17), (zone*10+2, 17), (zone*10+2, 2)]
+                zone = 'AB'.index(agent['zone_id'])
+                targets = [(zone*25+23, 2), (zone*25+23, 17), (zone*25+2, 17), (zone*25+2, 2)]
         choices = []
         for target in targets:
             path = route(self.grid, start, target, blocked)
@@ -283,7 +281,7 @@ class RecordedMission:
                 'max_step': max((r.get('step', 0) for r in self.agent_log), default=0),
                 'sensor_report': self.report, 'agent_rows': len(self.agent_log),
                 'frame': frame, 'plans': list(self.plans.values()), 'robot_task_suggestions': tasks,
-                'note': 'Historical replay. Grid zones A/B/C are preserved; CSE only supports A/B until mapping is agreed.'}
+                'note': 'Historical replay. Grid 50x30; zones A/B only. Legacy C logs must be regenerated.'}
 
     def load_defaults(self):
         folder = Path(__file__).resolve().parents[3] / 'simulation'

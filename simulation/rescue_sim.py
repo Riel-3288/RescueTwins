@@ -1,13 +1,16 @@
 """
 RescueTwin 2D grid simulation
-3 drones (zones A, B, C) + 1 real sensor node (node-01, replayed from JSON)
-+ 2 simulated sensor nodes (node-02, node-03).
+2 drones (zones A, B) + 1 real sensor node (node-01, replayed from JSON)
++ 1 simulated sensor node (node-02).
 Compares a random-walk baseline with a pheromone swarm.
 
-Run:  python rescuetwin_sim.py            (benchmark + JSON files + animation)
-      python rescuetwin_sim.py --no-anim  (no animation window)
+Run:  python simulation/rescue_sim.py            (benchmark + JSON files + animation)
+      python simulation/rescue_sim.py --no-anim  (no animation window)
 """
 import json
+import os
+import uuid
+from urllib.request import Request, urlopen
 import math
 import random
 import sys
@@ -18,8 +21,8 @@ from pathlib import Path
 import numpy as np
 
 # ---------------- SETTINGS ----------------
-H, W = 20, 30            # grid rows, columns
-ZONE_W = 10              # zone A = cols 0-9, B = 10-19, C = 20-29
+H, W = 30, 50            # grid rows, columns
+ZONE_W = 25              # zone A = cols 0-24, B = 25-49
 SENSE_R = 2              # drone sensing radius (cells)
 HAZARD_BLOCK = 0.6       # hazard above this = drones will not enter
 HAZARD_SIGMA = 1.6       # size of the hazard cloud around a node
@@ -40,28 +43,22 @@ RR, CC = np.mgrid[0:H, 0:W]
 # virtual positions are (row, col)
 NODES = [
     dict(id="node-01", pos=(10, 4),  zone="A", source="physical"),
-    dict(id="node-02", pos=(6, 15),  zone="B", source="simulation", period=140, phase=0.0),
-    dict(id="node-03", pos=(14, 25), zone="C", source="simulation", period=210, phase=2.0),
+    dict(id="node-02", pos=(12, 38),  zone="B", source="simulation", period=140, phase=0.0),
 ]
-DRONE_START = {"A": (1, 1), "B": (18, 12), "C": (1, 28)}
+DRONE_START = {"A": (1, 1), "B": (28, 48)}
 
 
 def zone_of(col):
-    return "ABC"[min(col // ZONE_W, 2)]
+    return "AB"[min(col // ZONE_W, 1)]
 
 
 def build_walls():
     w = np.zeros((H, W), bool)
-    w[:, 10] = True
-    w[:, 20] = True                      # zone partitions
-    for r in (4, 5, 14, 15):
-        w[r, 10] = False                 # doorways A <-> B
-    for r in (8, 9, 10):
-        w[r, 20] = False                 # doorways B <-> C
-    w[6, 2:8] = True                     # inner walls
-    w[13, 12:18] = True
-    w[7, 22:28] = True
-    w[13:16, 24] = True
+    w[:, 25] = True
+    for r in (4, 5, 20, 21):
+        w[r, 25] = False
+    w[6, 2:8] = True
+    w[18, 32:38] = True
     return w
 
 
@@ -104,7 +101,7 @@ class World:
             r0, c0 = n["pos"]
             self.gauss[n["id"]] = np.exp(-((RR - r0) ** 2 + (CC - c0) ** 2) / (2 * HAZARD_SIGMA ** 2))
         self.victims = []
-        for z in range(3):
+        for z in range(2):
             cands = [(r, c) for r in range(H) for c in range(z * ZONE_W, (z + 1) * ZONE_W)
                      if not self.walls[r, c]
                      and all(abs(r - n["pos"][0]) + abs(c - n["pos"][1]) > 4 for n in NODES)
@@ -113,7 +110,9 @@ class World:
         self.found = set()
         self.seen = np.zeros((H, W), bool)
         self.phero = np.zeros((H, W))
-        self.agents = [dict(id=f"drone-{z}", pos=DRONE_START[z], zone=z) for z in "ABC"]
+        self.agents = [dict(id=f"drone-{z}", pos=DRONE_START[z], zone=z) for z in "AB"]
+        self.mec_url = os.environ.get("SWARM_MEC_URL", "").rstrip("/") if mode == "swarm" else ""
+        self.mission_id = uuid.uuid4().hex
         self.t = 0
         self.t_cover = None
         self.t_victims = None
@@ -124,6 +123,8 @@ class World:
         self.update_hazard()
         for a in self.agents:
             self.sense(a)
+        if self.mec_url:
+            self.sync_mec()
         self.check_done()
         self.record_step()
 
@@ -144,6 +145,40 @@ class World:
         for n in NODES:
             h += self.level(n) * self.gauss[n["id"]]
         self.haz = np.clip(h, 0, 1)
+        self.blocked = (self.haz > HAZARD_BLOCK) & ~self.walls
+
+    def sync_mec(self):
+        """Send each drone's local observations; use only the returned merged map.
+
+        Network/API errors stop this run. Never silently substitute a local map.
+        Grid hazards are normalized demonstration values, not calibrated mV.
+        """
+        result = None
+        for agent in self.agents:
+            row, col = agent['pos']
+            cells = [dict(x=c, y=r, hazard=float(self.haz[r,c]))
+                     for r in range(max(0,row-SENSE_R),min(H,row+SENSE_R+1))
+                     for c in range(max(0,col-SENSE_R),min(W,col+SENSE_R+1))
+                     if not self.walls[r,c]]
+            payload = dict(mission_id=self.mission_id, drone_id=agent['id'],
+                           sequence=self.t, tick=self.t, cells=cells)
+            headers = {'Content-Type':'application/json'}
+            token = os.environ.get('SWARM_API_TOKEN')
+            if token: headers['Authorization'] = 'Bearer '+token
+            request = Request(self.mec_url+'/v1/reports', data=json.dumps(payload).encode(), headers=headers)
+            with urlopen(request, timeout=10) as response:
+                result = json.load(response)
+        if (result['width'],result['height']) != (W,H) or result['mission_id'] != self.mission_id:
+            raise ValueError('MEC returned a different map/mission')
+        self.mec_snapshot = result
+        self.phero.fill(0)
+        self.seen.fill(False)
+        self.haz.fill(0)
+        for cell in result['pheromone']:
+            self.phero[cell['y'],cell['x']] = cell['value']
+            self.seen[cell['y'],cell['x']] = True
+        for cell in result['hazards']:
+            self.haz[cell['y'],cell['x']] = cell['value']
         self.blocked = (self.haz > HAZARD_BLOCK) & ~self.walls
 
     # --- sensing ---
@@ -249,6 +284,8 @@ class World:
     def step(self):
         self.t += 1
         self.update_hazard()
+        if self.mec_url:
+            self.sync_mec()
         self.move_agents()
         for a in self.agents:
             self.sense(a)
@@ -290,7 +327,7 @@ def benchmark(data):
     for mode in res:
         for s in range(SEED, SEED + N_RUNS):
             res[mode].append(run(s, mode, data))
-    print(f"\nBenchmark: {N_RUNS} runs, 3 drones, {SENSE_R}-cell sensing, cap {MAX_STEPS} steps")
+    print(f"\nBenchmark: {N_RUNS} runs, 2 drones, {SENSE_R}-cell sensing, cap {MAX_STEPS} steps")
     print(f"{'':16}{'steps to 100% map':>20}{'steps to find 3 victims':>26}{'zone handovers':>16}")
     for mode, label in (("random", "Random walk"), ("swarm", "Pheromone swarm")):
         ws = res[mode]
@@ -332,9 +369,9 @@ def draw(ax, w, title):
     img[w.walls] = (0.20, 0.20, 0.20)
     ax.clear()
     ax.imshow(img, origin="upper", interpolation="nearest")
-    for x in (9.5, 19.5):
+    for x in (24.5,):
         ax.axvline(x, color="black", lw=0.8, ls="--")
-    for i, z in enumerate("ABC"):
+    for i, z in enumerate("AB"):
         ax.text(i * ZONE_W + 4.5, -0.9, f"Zone {z}", ha="center", fontsize=9)
     for n in NODES:
         r, c = n["pos"]
@@ -384,7 +421,8 @@ def animate(data):
 
 def main():
     data = load_series()
-    benchmark(data)
+    if "--quick" not in sys.argv:
+        benchmark(data)
     if WRITE_JSON:
         export_json(data)
     if "--no-anim" not in sys.argv:
