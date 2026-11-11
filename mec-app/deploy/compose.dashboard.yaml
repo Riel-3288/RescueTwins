@@ -1,0 +1,14 @@
+name: rescuetwins-recorded-demo
+services:
+  dashboard:
+    build:
+      context: ../..
+      dockerfile: mec-app/deploy/Dockerfile.dashboard
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - dashboard-state:/workspace/mec-app/deploy/runtime
+    init: true
+    stop_grace_period: 15s
+volumes:
+  dashboard-state: {}

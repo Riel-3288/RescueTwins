@@ -1,0 +1,107 @@
+{
+  "require_tls": false,
+  "state_file": "runtime/bridge.sqlite",
+  "ipe_state_file": "runtime/ipe.sqlite",
+  "ipe_zone": "A",
+  "mqtt": {
+    "host": "127.0.0.1",
+    "port": 18883,
+    "client_id": "rescuetwin-bridge"
+  },
+  "cse": {
+    "A": {
+      "base_url": "http://127.0.0.1:18001/~/id-mn-a/cse-mn-a",
+      "token_env": "CSE_A_TOKEN"
+    },
+    "B": {
+      "base_url": "http://127.0.0.1:18002/~/id-mn-b/cse-mn-b",
+      "token_env": "CSE_B_TOKEN"
+    },
+    "IN": {
+      "base_url": "http://127.0.0.1:18000/~/id-in/cse-in",
+      "token_env": "CSE_IN_TOKEN"
+    }
+  },
+  "devices": {
+    "node-01": {
+      "originator": "CNode01",
+      "zones": [
+        "A"
+      ]
+    },
+    "node-02": {
+      "originator": "CNode02",
+      "zones": [
+        "A"
+      ]
+    },
+    "node-03": {
+      "originator": "CNode03",
+      "zones": [
+        "B"
+      ]
+    }
+  },
+  "agents": {
+    "agent-01": {
+      "originator": "CAgent01",
+      "address": "10.10.0.1"
+    },
+    "agent-02": {
+      "originator": "CAgent02",
+      "address": "10.10.0.2"
+    }
+  },
+  "factory": {
+    "width_m": 100,
+    "height_m": 60,
+    "boundary_x_m": 50,
+    "hysteresis_m": 2,
+    "confirm_samples": 2,
+    "origin_lat": 2.831,
+    "origin_lon": 101.706
+  },
+  "mec": {
+    "location_url": "",
+    "rnis_url": "",
+    "app_support_url": "",
+    "token_env": "MEC_TOKEN",
+    "max_location_age_s": 30
+  },
+  "rescue": {
+    "enabled": true,
+    "auto_dispatch": true,
+    "max_age_s": 35,
+    "sensor_positions": {
+      "node-01": {
+        "x_m": 21,
+        "y_m": 17
+      },
+      "node-02": {
+        "x_m": 43,
+        "y_m": 43
+      },
+      "node-03": {
+        "x_m": 77,
+        "y_m": 29
+      }
+    },
+    "thresholds": {
+      "temperature": {
+        "trigger": 60,
+        "clear": 50,
+        "unit": "degC"
+      },
+      "smoke_raw": {
+        "trigger": 2500,
+        "clear": 2000,
+        "unit": "mV"
+      },
+      "co_raw": {
+        "trigger": 2300,
+        "clear": 1800,
+        "unit": "mV"
+      }
+    }
+  }
+}

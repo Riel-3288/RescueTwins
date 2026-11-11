@@ -1,0 +1,601 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rescuetwin
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: integration-config
+  namespace: rescuetwin
+data:
+  config.json: "{\n  \"require_tls\": true,\n  \"state_file\": \"/data/bridge.sqlite\"\
+    ,\n  \"ipe_state_file\": \"/data/ipe.sqlite\",\n  \"ipe_zone\": \"A\",\n  \"mqtt\"\
+    : {\"host\": \"mqtt\", \"port\": 8883, \"client_id\": \"rescuetwin-bridge\", \"\
+    ca_file\": \"/certs/ca.crt\", \"cert_file\": \"/certs/bridge.crt\", \"key_file\"\
+    : \"/certs/bridge.key\"},\n  \"cse\": {\n    \"A\": {\"base_url\": \"https://cse-a:18001/~/id-mn-a/cse-mn-a\"\
+    , \"ca_file\": \"/certs/ca.crt\", \"token_env\": \"CSE_A_TOKEN\"},\n    \"B\"\
+    : {\"base_url\": \"https://cse-b:18002/~/id-mn-b/cse-mn-b\", \"ca_file\": \"/certs/ca.crt\"\
+    , \"token_env\": \"CSE_B_TOKEN\"},\n    \"IN\": {\"base_url\": \"https://cse-in:18000/~/id-in/cse-in\"\
+    , \"ca_file\": \"/certs/ca.crt\", \"token_env\": \"CSE_IN_TOKEN\"}\n  },\n  \"\
+    devices\": {\n    \"node-01\": {\"originator\": \"CNode01\", \"zones\": [\"A\"\
+    ]},\n    \"node-02\": {\"originator\": \"CNode02\", \"zones\": [\"A\"]},\n   \
+    \ \"node-03\": {\"originator\": \"CNode03\", \"zones\": [\"B\"]}\n  },\n  \"agents\"\
+    : {\n    \"agent-01\": {\"originator\": \"CAgent01\", \"address\": \"10.10.0.1\"\
+    },\n    \"agent-02\": {\"originator\": \"CAgent02\", \"address\": \"10.10.0.2\"\
+    }\n  },\n  \"factory\": {\"width_m\": 100, \"height_m\": 60, \"boundary_x_m\"\
+    : 50, \"hysteresis_m\": 2, \"confirm_samples\": 2, \"origin_lat\": 2.831, \"origin_lon\"\
+    : 101.706},\n  \"mec\": {\"location_url\": \"\", \"rnis_url\": \"\", \"app_support_url\"\
+    : \"\", \"token_env\": \"MEC_TOKEN\", \"max_location_age_s\": 30}\n}\n"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mqtt-config
+  namespace: rescuetwin
+data:
+  mosquitto.conf: 'listener 8883
+
+    cafile /mosquitto/certs/ca.crt
+
+    certfile /mosquitto/certs/broker.crt
+
+    keyfile /mosquitto/certs/broker.key
+
+    require_certificate true
+
+    use_identity_as_username true
+
+    allow_anonymous false
+
+    acl_file /mosquitto/config/acl
+
+    tls_version tlsv1.2
+
+    persistence true
+
+    persistence_location /mosquitto/data/
+
+    '
+  acl: 'user bridge
+
+    topic read rescuetwin/+/+/+
+
+    topic write rescuetwin-ack/+/+
+
+
+    user node-01
+
+    topic write rescuetwin/A/node-01/+
+
+    topic read rescuetwin-ack/A/node-01
+
+
+    user node-02
+
+    topic write rescuetwin/A/node-02/+
+
+    topic read rescuetwin-ack/A/node-02
+
+
+    user node-03
+
+    topic write rescuetwin/B/node-03/+
+
+    topic read rescuetwin-ack/B/node-03
+
+    '
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cse-a-data
+  namespace: rescuetwin
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cse-a
+  namespace: rescuetwin
+spec:
+  selector:
+    app: cse-a
+  ports:
+  - port: 18001
+    targetPort: 18001
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cse-a
+  namespace: rescuetwin
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: cse-a
+  template:
+    metadata:
+      labels:
+        app: cse-a
+    spec:
+      containers:
+      - name: cse-a
+        image: registry.example.invalid/rescuetwin:2026-11-08
+        env:
+        - name: CSE_TYPE
+          value: MN
+        - name: CSE_ID
+          value: id-mn-a
+        - name: CSE_NAME
+          value: cse-mn-a
+        - name: CSE_PORT
+          value: '18001'
+        - name: CSE_HOST
+          value: cse-a
+        - name: CSE_TLS
+          value: 'true'
+        - name: CSE_SERVER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: cse-tokens
+              key: a
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: certs
+          mountPath: /certs
+          readOnly: true
+        command:
+        - python
+        - tools/acme_config.py
+        ports:
+        - containerPort: 18001
+        readinessProbe:
+          tcpSocket:
+            port: 18001
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      securityContext:
+        fsGroup: 1883
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: cse-a-data
+      - name: certs
+        secret:
+          secretName: cse-a-certs
+          defaultMode: 288
+      nodeSelector:
+        rescuetwin-mec-zone: A
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cse-b-data
+  namespace: rescuetwin
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cse-b
+  namespace: rescuetwin
+spec:
+  selector:
+    app: cse-b
+  ports:
+  - port: 18002
+    targetPort: 18002
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cse-b
+  namespace: rescuetwin
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: cse-b
+  template:
+    metadata:
+      labels:
+        app: cse-b
+    spec:
+      containers:
+      - name: cse-b
+        image: registry.example.invalid/rescuetwin:2026-11-08
+        env:
+        - name: CSE_TYPE
+          value: MN
+        - name: CSE_ID
+          value: id-mn-b
+        - name: CSE_NAME
+          value: cse-mn-b
+        - name: CSE_PORT
+          value: '18002'
+        - name: CSE_HOST
+          value: cse-b
+        - name: CSE_TLS
+          value: 'true'
+        - name: CSE_SERVER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: cse-tokens
+              key: b
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: certs
+          mountPath: /certs
+          readOnly: true
+        command:
+        - python
+        - tools/acme_config.py
+        ports:
+        - containerPort: 18002
+        readinessProbe:
+          tcpSocket:
+            port: 18002
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      securityContext:
+        fsGroup: 1883
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: cse-b-data
+      - name: certs
+        secret:
+          secretName: cse-b-certs
+          defaultMode: 288
+      nodeSelector:
+        rescuetwin-mec-zone: B
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cse-in-data
+  namespace: rescuetwin
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cse-in
+  namespace: rescuetwin
+spec:
+  selector:
+    app: cse-in
+  ports:
+  - port: 18000
+    targetPort: 18000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cse-in
+  namespace: rescuetwin
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: cse-in
+  template:
+    metadata:
+      labels:
+        app: cse-in
+    spec:
+      containers:
+      - name: cse-in
+        image: registry.example.invalid/rescuetwin:2026-11-08
+        env:
+        - name: CSE_TYPE
+          value: IN
+        - name: CSE_ID
+          value: id-in
+        - name: CSE_NAME
+          value: cse-in
+        - name: CSE_PORT
+          value: '18000'
+        - name: CSE_HOST
+          value: cse-in
+        - name: CSE_TLS
+          value: 'true'
+        - name: CSE_SERVER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: cse-tokens
+              key: in
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: certs
+          mountPath: /certs
+          readOnly: true
+        command:
+        - python
+        - tools/acme_config.py
+        ports:
+        - containerPort: 18000
+        readinessProbe:
+          tcpSocket:
+            port: 18000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      securityContext:
+        fsGroup: 1883
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: cse-in-data
+      - name: certs
+        secret:
+          secretName: cse-in-certs
+          defaultMode: 288
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bridge-data
+  namespace: rescuetwin
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bridge
+  namespace: rescuetwin
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: bridge
+  template:
+    metadata:
+      labels:
+        app: bridge
+    spec:
+      containers:
+      - name: bridge
+        image: registry.example.invalid/rescuetwin:2026-11-08
+        env:
+        - name: CSE_A_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: cse-tokens
+              key: a
+        - name: CSE_B_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: cse-tokens
+              key: b
+        - name: CSE_IN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: cse-tokens
+              key: in
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: certs
+          mountPath: /certs
+          readOnly: true
+        - name: config
+          mountPath: /config
+          readOnly: true
+        command:
+        - python
+        - -m
+        - rescuetwin
+        - --config
+        - /config/config.json
+        - bridge
+      securityContext:
+        fsGroup: 1883
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: bridge-data
+      - name: certs
+        secret:
+          secretName: bridge-certs
+          defaultMode: 288
+      - name: config
+        configMap:
+          name: integration-config
+      nodeSelector:
+        rescuetwin-mec-zone: A
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mec-ipe-data
+  namespace: rescuetwin
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mec-ipe
+  namespace: rescuetwin
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mec-ipe
+  template:
+    metadata:
+      labels:
+        app: mec-ipe
+    spec:
+      containers:
+      - name: mec-ipe
+        image: registry.example.invalid/rescuetwin:2026-11-08
+        env:
+        - name: CSE_A_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: cse-tokens
+              key: a
+        - name: CSE_B_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: cse-tokens
+              key: b
+        - name: CSE_IN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: cse-tokens
+              key: in
+        - name: MEC_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: mec-access
+              key: token
+              optional: true
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: certs
+          mountPath: /certs
+          readOnly: true
+        - name: config
+          mountPath: /config
+          readOnly: true
+        command:
+        - python
+        - -m
+        - rescuetwin
+        - --config
+        - /config/config.json
+        - ipe
+      securityContext:
+        fsGroup: 1883
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: mec-ipe-data
+      - name: certs
+        secret:
+          secretName: bridge-certs
+          defaultMode: 288
+      - name: config
+        configMap:
+          name: integration-config
+      nodeSelector:
+        rescuetwin-mec-zone: A
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mqtt-data
+  namespace: rescuetwin
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mqtt
+  namespace: rescuetwin
+spec:
+  selector:
+    app: mqtt
+  ports:
+  - port: 8883
+    targetPort: 8883
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mqtt
+  namespace: rescuetwin
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mqtt
+  template:
+    metadata:
+      labels:
+        app: mqtt
+    spec:
+      containers:
+      - name: mqtt
+        image: eclipse-mosquitto:2.0.22
+        env: []
+        volumeMounts:
+        - name: data
+          mountPath: /mosquitto/data
+        - name: certs
+          mountPath: /mosquitto/certs
+          readOnly: true
+        - name: config
+          mountPath: /mosquitto/config
+          readOnly: true
+        ports:
+        - containerPort: 8883
+        readinessProbe:
+          tcpSocket:
+            port: 8883
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      securityContext:
+        fsGroup: 1883
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: mqtt-data
+      - name: certs
+        secret:
+          secretName: mqtt-certs
+          defaultMode: 288
+      - name: config
+        configMap:
+          name: mqtt-config
+      nodeSelector:
+        rescuetwin-mec-zone: A

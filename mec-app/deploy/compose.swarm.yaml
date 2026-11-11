@@ -1,0 +1,16 @@
+services:
+  swarm:
+    build:
+      context: .
+      dockerfile: Dockerfile.swarm
+    environment:
+      SWARM_API_TOKEN: ${SWARM_API_TOKEN:?Set SWARM_API_TOKEN before starting}
+    ports:
+      - "${SWARM_BIND_IP:-127.0.0.1}:8780:8780"
+    read_only: true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8780/health',timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 3

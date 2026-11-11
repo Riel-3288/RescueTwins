@@ -1,0 +1,27 @@
+services:
+  mqtt:
+    image: eclipse-mosquitto:2.0.22
+    ports: ["127.0.0.1:18883:1883"]
+    volumes:
+      - ./broker/mosquitto-local.conf:/mosquitto/config/mosquitto.conf:ro
+      - mqtt-data:/mosquitto/data
+  cse-in:
+    build: {context: ., dockerfile: Dockerfile}
+    command: ["python", "tools/acme_config.py", "--type", "IN", "--id", "id-in", "--name", "cse-in", "--port", "18000"]
+    ports: ["127.0.0.1:18000:18000"]
+    volumes: ["in-data:/data"]
+  cse-a:
+    build: {context: ., dockerfile: Dockerfile}
+    command: ["python", "tools/acme_config.py", "--type", "MN", "--id", "id-mn-a", "--name", "cse-mn-a", "--port", "18001"]
+    ports: ["127.0.0.1:18001:18001"]
+    volumes: ["a-data:/data"]
+  cse-b:
+    build: {context: ., dockerfile: Dockerfile}
+    command: ["python", "tools/acme_config.py", "--type", "MN", "--id", "id-mn-b", "--name", "cse-mn-b", "--port", "18002"]
+    ports: ["127.0.0.1:18002:18002"]
+    volumes: ["b-data:/data"]
+volumes:
+  mqtt-data: {}
+  in-data: {}
+  a-data: {}
+  b-data: {}
