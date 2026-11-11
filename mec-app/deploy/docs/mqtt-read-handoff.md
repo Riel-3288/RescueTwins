@@ -1,78 +1,120 @@
-# Zone A：通过 MQTT 读取一条最新温度记录
+# 通过 MQTT 读取 Zone A 温度
 
-此入口只发 oneM2M RETRIEVE（op=2），不注册 AE、不创建或修改 CSE 资源。
-无需 Sandbox、Docker、Dashboard 或 NumPy。先在能访问校园 Broker 的队友电脑运行；
-以后把相同代码和配置放到 Ubuntu VM 再测。此测试成功不代表已经完成 MEC VM 部署。
+读取 CSE 中最新的一条温度记录，不上传或修改数据。需要能连接 Broker，不需要启动 Simulation、Dashboard 或 Sandbox。
 
-## 需要队友确认的信息
+## 1. 安装依赖
 
-- 当前可达的 Broker 主机、端口、TLS/CA 要求。
-- 获准读取的 MQTT username、密码，以及对应的 oneM2M Originator。
-- 请求 topic 的发布权限、响应 topic 的订阅权限，以及目标温度 CIN 的读取 ACP。
-- 实际 CSE ID、完整温度资源路径和支持的 rvi。
-
-模板路径为 `/id-mn-zone-a/mn-zone-a/node-01/temperature/la`，需要 CSE 负责人确认。
-模板不默认借用 node-01 上传账号；该账号能上传不等于获准读取。
-此命令使用 `/oneM2M/req/<originator>/<cse_id>/json` 和
-`/oneM2M/resp/<originator>/<cse_id>/json`；如实际部署采用不同 topic 约定，需要先调整适配。
-
-## Windows PowerShell
-
-在项目的 `mec-app/deploy` 目录运行。项目现有环境使用 Python 3.13：
+在项目的 `mec-app/deploy` 目录打开 PowerShell：
 
 ```powershell
 py -3.13 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+已有 `.venv` 时跳过第一条。
+
+## 2. 填写连接参数
+
+先复制配置文件，只需做一次：
+
+```powershell
 Copy-Item config.mqtt-read.example.json config.mqtt-read.local.json
 ```
 
-编辑 `config.mqtt-read.local.json`，替换所有 REPLACE 字段，确认 target、port、cse_id、rvi。
-密码放环境变量，不写入配置。可通过安全输入设置：
+用 VS Code 打开 **`mec-app/deploy/config.mqtt-read.local.json`**，填写：
 
-```powershell
-$readCredential = Get-Credential -Message '输入 Broker 账号和密码（账号还需与配置一致）'
-$env:MEC_READ_MQTT_PASSWORD = $readCredential.GetNetworkCredential().Password
+| 字段 | 填什么 |
+|---|---|
+| `host` | 当前能访问的 Broker IP 或域名，不带 `http://` |
+| `port` | Broker 端口，模板为 `1883`，按实际修改 |
+| `username` | 有读取权限的 MQTT 账号 |
+| `originator` | 该连接使用的 oneM2M 读取身份，不是 MQTT 账号名 |
+| `cse_id` | 目标 CSE ID，模板为 `id-mn-zone-a` |
+| `target` | 完整温度路径，模板为 `/id-mn-zone-a/mn-zone-a/node-01/temperature/la` |
+| `rvi` | CSE 支持的 oneM2M 版本，模板为 `4` |
+| `password_env` | 保持 `MEC_READ_MQTT_PASSWORD` 即可 |
+| `timeout_s` | 等待响应的秒数，默认 `10` |
+
+替换所有 `REPLACE_...` 占位内容。确认模板中的 CSE ID 和温度路径与服务器一致。
+
+MQTT 账号需要能发布请求 topic、订阅响应 topic；Originator 需要有目标资源的读取权限。
+能上传数据的账号不一定有读取权限。
+
+程序根据 `originator` 和 `cse_id` 自动生成 topic，不用另填：
+
+```text
+/oneM2M/req/<originator>/<cse_id>/json
+/oneM2M/resp/<originator>/<cse_id>/json
 ```
 
-先检查配置（不连接网络），再执行一次读取：
+这里的 `originator` 使用不含斜杠的身份。如果服务器使用其他 topic 格式，需要调整代码。
+
+## 3. 输入密码并读取
+
+在同一个 PowerShell 终端输入密码，密码不会显示：
+
+```powershell
+$brokerPassword = Read-Host 'Broker password' -AsSecureString
+$env:MEC_READ_MQTT_PASSWORD = [System.Net.NetworkCredential]::new('', $brokerPassword).Password
+```
+
+先检查配置，这一步不会连接 Broker：
 
 ```powershell
 .\.venv\Scripts\python.exe -m rescuetwin.native_read --config config.mqtt-read.local.json
+```
+
+再读取一条记录：
+
+```powershell
 .\.venv\Scripts\python.exe -m rescuetwin.native_read --config config.mqtt-read.local.json --read
 ```
 
-## Ubuntu
+## 4. 查看结果
 
-在同一目录运行，需要 Python 3.13 及其 venv 支持：
+终端显示结果，同时保存到 **`mec-app/deploy/runtime/mqtt-read-latest.json`**。
+
+- `complete: true`、`rsc: 2000`：读取成功。
+- `content`：读取到的数据。
+- `cin`：CSE 返回的原始记录。
+- `detail`：失败原因。
+
+只检查配置时 `complete` 为 `false`，这是正常的。每次运行会覆盖结果文件。
+最新记录可能是旧数据，采样时间要看记录本身，`received_at` 只是本次接收时间。
+读取结果目前不会自动显示到 Dashboard。
+
+## Ubuntu 命令
+
+在 `mec-app/deploy` 目录运行，需要 Python 3.13 和 venv：
 
 ```bash
 python3.13 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 cp config.mqtt-read.example.json config.mqtt-read.local.json
-# 编辑本地配置后，私下输入 Broker 密码
+```
+
+按上表编辑本地配置后运行：
+
+```bash
 read -r -s -p 'Broker password: ' MEC_READ_MQTT_PASSWORD
 export MEC_READ_MQTT_PASSWORD
 .venv/bin/python -m rescuetwin.native_read --config config.mqtt-read.local.json
 .venv/bin/python -m rescuetwin.native_read --config config.mqtt-read.local.json --read
 ```
 
-## 成功条件和排错
+已有环境或本地配置时跳过对应创建步骤。
 
-输出保存在 `runtime/mqtt-read-latest.json`。只有收到匹配 rqi、rsc=2000 且包含
-`m2m:cin.con` 的响应才标记 `complete=true`。`content` 是解析后的记录，`cin` 保留原始
-CIN 内容。`received_at` 是本次接收时间，不代表传感器采样时间；latest 记录也可能是旧记录。
-报告内容格式不强制改写，不把成功读回等同于满足八字段数据约定或真实硬件验收。
-失败退出码为 1，默认预览 complete=false；每次运行覆盖报告，避免误用上次成功结果。
+## 常见错误
 
-- 连接超时/拒绝：先检查 Broker 地址、监听、防火墙、校园内网或 VPN 路由。
-- 连接未获接受：检查 MQTT 账号密码及 TLS。
-- 订阅被拒绝：检查响应 topic ACL。
-- CSE 响应超时：检查请求 topic ACL、CSE 是否连接此 Broker、响应路由和 rvi。
-- rsc=4103：检查读取身份和 ACP；rsc=4004：检查路径及是否已有温度记录。
+| 情况 | 检查内容 |
+|---|---|
+| 连接超时或拒绝连接 | Broker 地址、端口、监听、防火墙、校园网或 VPN |
+| 连接未被接受 | MQTT 账号、密码和 TLS 设置 |
+| 订阅被拒绝 | 响应 topic 的订阅权限 |
+| CSE 响应超时 | 请求 topic 的发布权限、CSE 的 MQTT 连接、响应 topic、`rvi` |
+| `rsc=4103` | Originator 的读取权限（ACP） |
+| `rsc=4004` | 资源路径是否正确、是否已有温度记录 |
 
-TLS Broker 在本地配置添加 `ca_file`（受信任 CA 文件），如要求双向认证再添加
-`cert_file`、`key_file`，并填写实际 TLS 端口；保持证书校验开启。
+Broker 要求 TLS 时，在本地配置添加 `ca_file` 并修改端口；要求客户端证书时再添加 `cert_file`、`key_file`。
 
-将运行报告交回团队即可定位下一步；报告包含传感器数据，分享前确认范围。
-不要提交密码、私钥或本地配置。代码包至少包含 rescuetwin/、requirements.txt、
-config.mqtt-read.example.json 和本说明，不要打包 .venv/ 或 runtime/。
+密码不要写进 JSON。本地配置 `config.*.local.json` 和运行结果 `runtime/` 已被 Git 忽略。
