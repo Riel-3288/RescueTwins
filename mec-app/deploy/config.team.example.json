@@ -148,5 +148,25 @@
       "path": "/zone-b-connection-test/_connection_test/la"
     }
   },
-  "transport": "oneM2M-mqtt"
+  "transport": "oneM2M-mqtt",
+  "mec_recorded_mapping": {
+    "ue_by_drone": {
+      "drone-A": "10.10.0.1",
+      "drone-B": "10.1.0.1"
+    },
+    "bounds": {
+      "south": 43.7314,
+      "north": 43.7514,
+      "west": 7.4202,
+      "east": 7.4402
+    },
+    "mode": "demo_map_projection",
+    "grid_width": 50,
+    "grid_height": 30,
+    "calibrated": false
+  },
+  "simulation_cse_routing": {
+    "A": "MN-A",
+    "B": "MN-B"
+  }
 }

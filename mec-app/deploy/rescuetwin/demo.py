@@ -61,6 +61,9 @@ class Demo:
         from .recordings import RecordedMission
         self.recorded = RecordedMission(config)
         self.recorded.load_defaults()
+        from .links import RobotTasks
+        self.robot = RobotTasks(self.rescue.store)
+        self.mec_context = None
         self.file_rows = None
         self.file_report = None
         if config.get('sensor_file'):
@@ -203,6 +206,8 @@ class Demo:
         with self.lock:
             value = self.factory.snapshot()
             value["recorded"] = self.recorded.snapshot()
+            value["robot_tasks"] = self.robot.tasks
+            value["mec_grid_context"] = self.mec_context
             value['sensor_input'] = dict(mode='recorded-file' if self.file_rows is not None else 'generated',
                 file=self.config.get('sensor_file'), rejected=self.file_report['rejected'] if self.file_report else [],
                 note='File input preserves source/time; stale records do not assert an online physical sensor.')
@@ -222,7 +227,18 @@ class Demo:
             return value
 
     def control(self, data):
-        if data.get('action') == 'recorded_seek':
+        if data.get('action') == 'mec_snapshot':
+            from .links import mapped_locations
+            self.mec_context = mapped_locations(self.config)
+        elif data.get('action') == 'robot_simulate':
+            suggestions = self.recorded.snapshot()['robot_task_suggestions']
+            suggestion = next((t for t in suggestions if t['task_id'] == data.get('suggestion_id')), None)
+            if suggestion is None: raise ValueError('Suggestion is unavailable at this replay step')
+            self.robot.simulate(suggestion,self.recorded.frame(),self.recorded.grid)
+        elif data.get('action') == 'robot_feedback':
+            self.robot.feedback(data.get('feedback',{}))
+        elif data.get('action') == 'recorded_seek':
+            self.robot.invalidate('Replay step changed')
             self.recorded.seek(data.get('step'))
         elif data.get('action') == 'drone_plan':
             self.recorded.plan(data.get('drone_id'), data.get('goal'), data.get('battery', 100))
@@ -257,7 +273,7 @@ class Demo:
         self.client.loop_stop()
 
 
-def make_server(demo, port):
+def make_server(demo, port, host="127.0.0.1"):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -325,6 +341,7 @@ def make_server(demo, port):
                     if len(raw) != length: raise ValueError("Incomplete upload")
                     with demo.lock:
                         result = demo.recorded.upload(kind, raw)
+                        demo.robot.invalidate("Recorded input changed")
                     return self.send(result)
                 except (ValueError, TypeError, KeyError, UnicodeDecodeError, OverflowError) as exc:
                     return self.send({"error": str(exc)}, 400)
@@ -342,10 +359,10 @@ def make_server(demo, port):
                 with demo.lock:
                     demo.control(data)
                 self.send({"ok": True})
-            except (ValueError, TypeError, KeyError) as exc:
+            except (ValueError, TypeError, KeyError, __import__("requests").RequestException) as exc:
                 self.send({"error": str(exc)}, 400)
 
-    return ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    return ThreadingHTTPServer((host, port), Handler)
 
 
 class LocalBroker:
@@ -441,6 +458,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=ROOT / "config.example.json")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--host", choices=["127.0.0.1", "0.0.0.0"], default="127.0.0.1", help="Bind address; containers need 0.0.0.0")
     parser.add_argument("--local-broker", action="store_true")
     parser.add_argument("--recorded-only", action="store_true", help="Offline files only; no MQTT or CSE processes")
     parser.add_argument("--with-cse", action="store_true", help="Launch isolated local ACME IN/A/B and bridge")
@@ -484,7 +502,7 @@ def main():
         demo = Demo(cfg, bridge)
         if not args.recorded_only:
             demo.start()
-        server = make_server(demo, args.port)
+        server = make_server(demo, args.port, args.host)
         print(f"Dashboard: http://127.0.0.1:{args.port}", flush=True)
         if args.recorded_only:
             print("Recorded Mission: offline files; no MQTT broker, bridge, or CSE writes. Open /#recorded.", flush=True)

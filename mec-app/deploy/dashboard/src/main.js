@@ -245,11 +245,13 @@ function renderRecorded(){
   $('recordedPlanStatus').textContent=plan?`${plan.status}${plan.reason?': '+plan.reason:''}${plan.simulation?' · Round trip simulated; no hardware command':''}`:'Choose a drone and plan a mission.';
   $('recordedPlanJson').textContent=plan?JSON.stringify(plan,null,2):'';
   $('recordedSimulate').disabled=!plan||!['planned','return_home'].includes(plan.status);
-  $('recordedRobotTasks').innerHTML=r.robot_task_suggestions.map(t=>`<tr><td>${esc(t.operation)}</td><td>${esc(t.zone_id)}</td><td>${esc(t.goal.join(', '))}</td><td>${esc(t.status==='suggestion_requires_robot_adapter'?'Awaiting robot connection':t.status)}</td></tr>`).join('')||emptyRow(4,'No victim has been reported at this replay step.');
+  $('recordedRobotTasks').innerHTML=r.robot_task_suggestions.map(t=>`<tr><td>${esc(t.operation)}</td><td>${esc(t.zone_id)}</td><td>${esc(t.goal.join(', '))}</td><td>${esc(t.status==='suggestion_requires_robot_adapter'?'Suggestion':t.status)} <button class="row-action" data-robot-suggestion="${esc(t.task_id)}">Simulate local robot</button></td></tr>`).join('')||emptyRow(4,'No victim has been reported at this replay step.');
+  $('robotFeedbackJson').textContent=JSON.stringify(state.robot_tasks||[],null,2);
+  $('mecGridJson').textContent=JSON.stringify(state.mec_grid_context||'Click Read MEC positions. Demo projection is not a calibrated physical location.',null,2);
   const context=canvasContext($('recordedMap'));if(!context)return;
   const {ctx,w,h}=context,cw=w/r.grid.width,ch=h/r.grid.height;
   ctx.fillStyle='#f5f8fc';ctx.fillRect(0,0,w,h);
-  for(let y=0;y<r.grid.height;y++)for(let x=0;x<r.grid.width;x++){ctx.fillStyle=['#eef6ff','#f0faf1','#fff8ec'][Math.floor(x/10)];ctx.fillRect(x*cw,y*ch,cw-1,ch-1);}
+  for(let y=0;y<r.grid.height;y++)for(let x=0;x<r.grid.width;x++){ctx.fillStyle=['#eef6ff','#f0faf1'][Math.floor(x/r.grid.zone_width)];ctx.fillRect(x*cw,y*ch,cw-1,ch-1);}
   ctx.fillStyle='#65768b';for(const [x,y]of r.grid.walls)ctx.fillRect(x*cw,y*ch,cw,ch);
   for(const hazard of r.frame.hazards){ctx.fillStyle='#fca5a580';ctx.fillRect((hazard.x-2)*cw,(hazard.y-2)*ch,5*cw,5*ch);}
   if(plan?.outbound){ctx.strokeStyle='#15803d';ctx.lineWidth=3;ctx.beginPath();plan.outbound.forEach(([x,y],i)=>{const px=(x+.5)*cw,py=(y+.5)*ch;i?ctx.lineTo(px,py):ctx.moveTo(px,py);});ctx.stroke();}
@@ -271,4 +273,6 @@ $('recordedPlanForm').addEventListener('submit',async e=>{
 });
 $('recordedSimulate').addEventListener('click',()=>{const p=state?.recorded?.plans.find(p=>p.drone_id===$('recordedDrone').value);if(p)command('drone_simulate',{drone_id:p.drone_id,plan_id:p.plan_id});});
 
+$('recordedRobotTasks').addEventListener('click',e=>{const b=e.target.closest('[data-robot-suggestion]');if(b)command('robot_simulate',{suggestion_id:b.dataset.robotSuggestion});});
+$('mecGridRefresh').addEventListener('click',()=>command('mec_snapshot'));
 routePage();setInterval(poll,700);poll();

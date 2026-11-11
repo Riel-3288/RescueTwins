@@ -1,4 +1,4 @@
-Three.js 0.180.0 - https://github.com/mrdoob/three.js
+Three.js 0.180.0 — https://github.com/mrdoob/three.js
 
 The MIT License
 
