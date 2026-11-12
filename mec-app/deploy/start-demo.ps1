@@ -39,7 +39,7 @@ try {
     }
     if ($CheckOnly) { Write-Output "Environment ready for $Mode."; return }
     if ($Mode -in @('Swarm','SwarmHeadless')) {
-        $simulationScript = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'simulation\rescue_sim.py'
+        $simulationScript = Join-Path $PSScriptRoot 'tools\run_swarm.py'
         if (-not $env:SWARM_MEC_URL) { $env:SWARM_MEC_URL = 'http://127.0.0.1:8780' }
         Write-Output "Swarm uses independent MEC service: $env:SWARM_MEC_URL"
         $simulationArguments = @('-X','utf8',$simulationScript)

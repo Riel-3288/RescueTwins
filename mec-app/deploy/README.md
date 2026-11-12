@@ -94,3 +94,8 @@ on a separate worker so broker callbacks cannot deadlock the simulation lock.
 Use [the recorded mission workflow](docs/simulator-mqttx-guide.md#recorded-json-integration-and-drone-missions) for uploaded sensor JSON/JSONL and the current `simulation/sim_agent_log.jsonl`. It preserves the original three-zone grid and timestamps, adds offline drone inspection/patrol routing, round-trip/energy checks, and exports robot task suggestions. Launch with `python -m rescuetwin.demo --config config.team.example.json --recorded-only`, then open `http://127.0.0.1:8765/#recorded`.
 
 `python -m rescuetwin --config config.team.example.json check-team` checks the supplied Mobius transit reads and MEC013 without registration or writes. Team CSE access from this computer is still unverified (timeouts on 2026-11-10); MEC Location v3 was reachable. Smoke/CO mV units are aligned; hazard thresholds, zone C routing, independent AE/ACP permissions, robot feedback and UE mapping remain explicit integration gaps. This feature does not claim real-time flight or live migration.
+
+
+## Swarm cooperative control
+
+Swarm exploration bidding and collision reservations are implemented in `rescuetwin/swarm_logic.py`, served by `rescuetwin/swarm_service.py` and consumed through `tools/run_swarm.py`. The existing Swarm launcher uses this adapter; the team-owned simulator remains unchanged. See [run guide](README_RUN.md#swarm-logic-实现位置与范围).

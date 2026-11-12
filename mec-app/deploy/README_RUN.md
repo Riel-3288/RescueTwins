@@ -71,7 +71,7 @@ cd mec-app/deploy
 终端 2，在项目根目录运行 Simulation：
 
 ```bash
-SWARM_MEC_URL=http://127.0.0.1:8780 mec-app/deploy/.venv/bin/python simulation/rescue_sim.py --quick --no-anim
+SWARM_MEC_URL=http://127.0.0.1:8780 mec-app/deploy/.venv/bin/python mec-app/deploy/tools/run_swarm.py --quick --no-anim
 ```
 
 终端 3，在 `mec-app/deploy` 目录启动 Dashboard：
@@ -102,3 +102,21 @@ powershell -ExecutionPolicy Bypass -File .\mec-app\deploy\start-demo.ps1 -Mode S
 
 当前地图为 50×30，只有 A/B 两区和 drone-A/B。node-01 使用历史传感器记录，node-02 使用模拟数据。
 本机运行已验证，Ubuntu VM 部署仍需实测。
+
+
+## Swarm logic 实现位置与范围
+
+- simulation/rescue_sim.py：Sariel 的基础模型、局部信息素/蒸发、避障、感知和导出。原文件不改。
+- rescuetwin/swarm_service.py：独立 HTTP 服务，合并两架 drone 的局部地图/信息素，处理重复/过期报告。
+- rescuetwin/swarm_logic.py：本次补齐的协同控制器；按可探索格的信息增益与路径代价竞价，避免两架 drone 领取相近目标，并预约下一步位置，禁止同格和互换碰撞。目标仍有收益时优先保持，危险变化后重新规划。
+- tools/run_swarm.py：把服务分配接到原 Simulation 的适配器。启动器的 Swarm/SwarmHeadless 已使用这个入口；直接运行原 rescue_sim.py 仍是基础算法。
+
+先启动 SwarmService，再启动 Swarm/SwarmHeadless，原有两终端命令不变。HTTP /v1/reports 新增可选 position={x,y}；响应 coordination 包含 assignments、actions、bid、information_gain 和 path。旧地图融合客户端仍兼容；更新后的执行适配器要求新服务，缺少竞价策略会停止，不静默退回本地算法。
+
+信息素代表已探索历史，并按 tick 蒸发；危险图使用归一化仿真值，不能当作 mV 标定阈值。当前策略是探索任务的贪心竞价，不是全局最优求解器，也没有声称完成真实设备控制、CSE切换或 MEC021迁移。
+
+本轮测试：真实 HTTP 服务 + 双 drone 完整运行，seed=1，183步实现100%地图覆盖、发现2个目标，并逐步验证避墙、已知危险格和互撞。此结果只针对该仿真场景，不代表实物性能或多随机种子的性能结论。
+
+需要把输出放到独立目录时，在项目根目录调用 Python 适配器并加 --output-dir（不改变原输入文件）。默认启动器仍使用 simulation 中的两个输出 JSONL，Dashboard 可读取其回放。
+
+本轮验证还包含独立命令行 quick/no-anim 导出至临时目录、认证失败停止执行、重复报告稳定性与非法报告不改变任务状态。部署配置已更新为包含 swarm_logic.py；本次没有完成 Docker/Ubuntu/Kubernetes 实际部署，也未 commit/push。

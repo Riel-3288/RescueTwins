@@ -13,12 +13,18 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+try:
+    from .swarm_logic import Coordinator,walls
+except ImportError:
+    from swarm_logic import Coordinator,walls
+
 WIDTH, HEIGHT = 50, 30
 
 
 class Fusion:
     def __init__(self):
         self.missions = {}
+        self.coordinators = {}
         self.lock = threading.Lock()
 
     def report(self, body):
@@ -43,17 +49,27 @@ class Fusion:
             if (x, y) in parsed:
                 raise ValueError('Duplicate cell')
             parsed[x, y] = hazard
+        position=body.get('position')
+        if position is not None:
+            if not isinstance(position,dict) or any(type(position.get(k)) is not int for k in ('x','y')):
+                raise ValueError('position requires integer x/y')
+            position=(position['x'],position['y'])
+            if position not in parsed or position in walls():raise ValueError('Position must be an observed walkable cell')
         now = time.monotonic()
         with self.lock:
             # Remove abandoned runs and bound memory for a long-running host.
             for key in list(self.missions):
                 if now - self.missions[key]['access'] > 3600:
                     del self.missions[key]
+                    self.coordinators.pop(key,None)
             if mission not in self.missions:
                 if len(self.missions) >= 32:
                     raise ValueError('Mission capacity reached; use a fresh service or wait for expiry')
                 self.missions[mission] = dict(tick=tick, reports={}, seen={}, access=now)
+                self.coordinators[mission]=Coordinator()
             state = self.missions[mission]
+            if position is not None and any(d!=drone and r['tick']==tick and r.get('position')==position for d,r in state['reports'].items()):
+                raise ValueError('Drone positions overlap')
             previous = state['reports'].get(drone)
             if previous and seq == previous['sequence']:
                 if previous['body'] != body:
@@ -63,7 +79,7 @@ class Fusion:
                     raise ValueError('Out-of-order report')
                 if tick < state['tick'] - 8 or tick > state['tick'] + 1:
                     raise ValueError('Report tick outside active mission window')
-                state['reports'][drone] = dict(sequence=seq, tick=tick, cells=parsed, body=body, received=now)
+                state['reports'][drone] = dict(sequence=seq, tick=tick, cells=parsed, body=body, received=now, position=position)
                 for p in parsed:
                     state['seen'][p] = max(tick, state['seen'].get(p, -1))
                 state['tick'] = max(tick, state['tick'])
@@ -74,11 +90,19 @@ class Fusion:
                 if current - report['tick'] <= 8 and now - report['received'] <= 30:
                     for p, value in report['cells'].items():
                         hazards[p] = max(value, hazards.get(p, 0))
-            return dict(mission_id=mission, tick=current, width=WIDTH, height=HEIGHT,
+            result = dict(mission_id=mission, tick=current, width=WIDTH, height=HEIGHT,
                         zones=['A', 'B'], source='mec_swarm_fusion',
                         pheromone=[dict(x=x, y=y, value=(1-0.003)**(current-t)) for (x,y),t in state['seen'].items()],
                         hazards=[dict(x=x,y=y,value=v,blocked=v>0.6) for (x,y),v in hazards.items() if v>0],
                         active_drones=[d for d,r in state['reports'].items() if current-r['tick']<=8 and now-r['received']<=30])
+            positions={d:r['position'] for d,r in state['reports'].items()
+                       if r.get('position') is not None and r['tick']==current and now-r['received']<=30}
+            if len(positions)==2:
+                if len(set(positions.values()))!=2:raise ValueError('Drone positions overlap')
+                result['coordination']=self.coordinators[mission].plan(positions,state['seen'],hazards)
+            else:
+                result['coordination']={'policy':'frontier_auction_v1','actions':{},'status':'waiting_for_current_peer_positions'}
+            return result
 
 
 def make_server(host='127.0.0.1', port=8780, token=None):

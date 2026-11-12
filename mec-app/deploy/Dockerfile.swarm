@@ -1,6 +1,6 @@
 FROM python:3.13-slim
 WORKDIR /app
-COPY rescuetwin/swarm_service.py /app/swarm_service.py
+COPY rescuetwin/swarm_service.py rescuetwin/swarm_logic.py /app/
 USER 65534:65534
 EXPOSE 8780
 CMD ["python", "-u", "swarm_service.py", "--host", "0.0.0.0"]
