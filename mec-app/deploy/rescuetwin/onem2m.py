@@ -64,7 +64,7 @@ class Cse:
             self.ensure("/" + name, container, 3, {"mni": 1000}, "m2m:cnt")
 
     def cin(self, path, value, key=None):
-        # A stable resource name makes a retry safe after a lost HTTP response.
+        # Stable resource names make retries idempotent.
         name = "cin-" + (key or digest(value))[:40]
         text = canonical(value)
         try:
@@ -82,9 +82,9 @@ class Cse:
         return json.loads(value) if isinstance(value, str) else value
 
     def entries(self, path):
-        # Discover all retained command CINs; reading only /la loses queued commands.
+        # Read all commands; /la would skip queued entries.
         refs = self.call("GET", path + "?fu=1&ty=4&drt=1").get("m2m:uril", [])
         for ref in refs:
-            # Discovery URIs may be SP-relative or CSE-relative. Last segment is RN.
+            # Both URI forms end with the resource name.
             name = ref.rstrip("/").split("/")[-1]
             yield self.call("GET", path + "/" + quote(name, safe=""))["m2m:cin"]

@@ -19,7 +19,7 @@ def main():
         return 1
 
     def watch_parent():
-        # EOF also stops an orphan after its parent exits.
+        # Stop if the parent closes the pipe.
         for line in sys.stdin:
             if line.strip() == "shutdown":
                 break
@@ -34,8 +34,7 @@ def main():
             time.sleep(.05)
         stopped.wait()
     finally:
-        # ACME 2026.5.3's public shutdown() only stops its console loop.
-        # This pinned version's finalizer closes and flushes TinyDB writers.
+        # ACME 2026.5.3 needs this finalizer to flush TinyDB.
         CSE._shutdown()
     return 0
 

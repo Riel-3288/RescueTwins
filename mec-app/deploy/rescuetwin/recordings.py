@@ -92,7 +92,7 @@ class RecordedMission:
     def upload(self, kind, raw):
         rows = parse_records(raw)
         if kind == 'sensors':
-            # Malformed contract rows remain available for inspection, never CSE writes.
+            # Keep rejected rows for inspection only.
             report = sensor_report(rows, self.config)
             self.sensors, self.report = copy.deepcopy(rows), report
         elif kind == 'agents':
@@ -161,7 +161,7 @@ class RecordedMission:
                 victims.append(row)
             else:
                 events.append(row)
-        # Each drone uses its latest position at/before the selected step, not a future row.
+        # Use only observations available at the selected replay step.
         as_of = max((utc_timestamp(a['observed_at']) for a in agents.values()), default=None)
         latest = {}
         for row in self.sensors:
@@ -220,7 +220,7 @@ class RecordedMission:
                 raise ValueError('Goal must be [x, y] in integer grid cells')
             targets = [tuple(goal)]
         else:
-            # Known victims only; no undiscovered future victim coordinates enter the planner.
+            # Plan only for victims discovered by this step.
             targets = [(r['x'],r['y']) for r in frame['victims']]
             if not targets:
                 zone = 'AB'.index(agent['zone_id'])
@@ -283,7 +283,6 @@ class RecordedMission:
 
     def load_defaults(self):
         folder = Path(__file__).resolve().parents[3] / 'simulation'
-        # Default demo needs no upload. New uploads replace the relevant dataset atomically.
         for kind, name in [('agents','sim_agent_log.jsonl'), ('sensors','sim_sensor_data.jsonl')]:
             path = folder / name
             if path.is_file():

@@ -42,6 +42,7 @@ class Fusion:
         position=point(body['position']) if body.get('position') is not None else None
         goal=point(body['goal']) if body.get('goal') is not None else None
         if position is not None and position not in parsed:raise ValueError('Position must be observed')
+        # Validate reports before changing mission state.
         now=time.monotonic()
         with self.lock:
             for key in list(self.missions):
@@ -65,6 +66,7 @@ class Fusion:
             for r in state['reports'].values():
                 if current-r['tick']<=8 and now-r['received']<=30:
                     for p,h in r['cells'].items():hazards[p]=max(h,hazards.get(p,0))
+            # Allocate moves only when every drone reports the same round.
             current_reports={d:r for d,r in state['reports'].items() if r.get('position') is not None and r['tick']==current and now-r['received']<=30}
             coordination=self.coordinators[mission].plan({d:r['position'] for d,r in current_reports.items()},state['seen'],hazards,
                          {d:r['goal'] for d,r in current_reports.items() if r.get('goal') is not None}) if len(current_reports)==len(spec.drone_ids) else dict(policy='frontier_auction_v1',actions={},status='waiting_for_current_peer_positions')

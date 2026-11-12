@@ -28,8 +28,8 @@ function Assert-OnlyDirectories {
     }
 }
 
-# Validate both absolute paths and the shallow leftover structure before moving.
-# The inaccessible pytest directories are never enumerated or deleted.
+# Validate both paths before moving the leftover directory.
+# Do not traverse protected test directories.
 $nestedResolved = (Resolve-Path -LiteralPath $nestedRoot).ProviderPath
 $runtimeResolved = (Resolve-Path -LiteralPath $runtimeRoot).ProviderPath
 if ($nestedResolved -ne (Join-Path $projectRoot 'RescueTwins') -or $runtimeResolved -ne (Join-Path $projectRoot 'mec-app\deploy\runtime')) {
@@ -45,8 +45,8 @@ Assert-OnlyDirectories -Path (Join-Path $nestedRoot 'mec-app\deploy\runtime') -A
 
 if ($PSCmdlet.ShouldProcess($nestedRoot, "Move remaining test caches intact to $backupRoot")) {
     try {
-        # A same-volume directory rename preserves all contents and permissions.
-        # Move-Item can walk the children and fail on protected pytest caches.
+        # Preserve contents and permissions with a same-volume rename.
+        # Avoid Move-Item: it traverses protected children.
         [IO.Directory]::Move($nestedResolved, $backupRoot)
     } catch {
         $cause = $_.Exception

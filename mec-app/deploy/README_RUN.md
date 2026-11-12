@@ -169,8 +169,8 @@ powershell -ExecutionPolicy Bypass -File .\mec-app\deploy\start-demo.ps1 -Mode S
 剩余旧缓存可在管理员 PowerShell 中、repo 根目录运行下面命令。脚本只处理 runtime 下的 pytest-*、npm-cache、relocation-temp，不包含数据库或报告：
 
 ```powershell
-# 先预览，不修改任何权限或文件
+# Preview cache targets without changing files.
 powershell -ExecutionPolicy Bypass -File "$PWD\mec-app\deploy\tools\clean-runtime.ps1" -WhatIf
-# 确认预览范围后执行
+# Remove the listed caches.
 powershell -ExecutionPolicy Bypass -File "$PWD\mec-app\deploy\tools\clean-runtime.ps1"
 ```

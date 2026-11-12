@@ -50,7 +50,7 @@ export class FactoryScene {
     this.baseA = new THREE.Color('#e2edf1'); this.baseB = new THREE.Color('#e5ede6');
     this.fireColor = new THREE.Color('#e65a2f'); this.smokeColor = new THREE.Color('#52627c');
     this.canvas.addEventListener('webglcontextlost', event => {event.preventDefault(); this.active=false; this.onError?.('The 3D graphics context was lost. Use the 2D grid.');});
-    // Keep middle dragging inside the map instead of starting browser auto-scroll.
+    // Keep middle dragging from triggering browser auto-scroll.
     this.canvas.addEventListener('pointerdown', event => {if(event.button===1)event.preventDefault();}, {capture:true});
     this.canvas.addEventListener('auxclick', event => {if(event.button===1)event.preventDefault();});
     this.pointers=new Set();

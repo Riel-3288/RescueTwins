@@ -1,4 +1,4 @@
-"""Sensor-to-task integration. Local agents execute inspection tasks, not fire suppression."""
+"""Turn sensor alerts into local inspection tasks."""
 from __future__ import annotations
 
 import copy
@@ -11,7 +11,7 @@ from .core import Store, digest, utcnow, utc_timestamp
 
 
 class TelemetryGate:
-    """Suppress unchanged simulator values; external physical publishers are never sampled."""
+    """Throttle simulator readings without filtering physical publishers."""
     def __init__(self):
         self.previous = {}
         self.skipped = 0
@@ -22,7 +22,7 @@ class TelemetryGate:
         old = self.previous.get(key)
         delta = {'temperature': 1, 'humidity': 1, 'pressure': 1, 'smoke_raw': 50, 'co_raw': 50}.get(key[1], 0)
         changed = old is None or (reading['value'] != old[1] if key[1] == 'presence' else abs(reading['value']-old[1]) >= delta)
-        # Crossings always pass immediately, even while replaying historical data.
+        # Always forward threshold crossings.
         thresholds = {'temperature': (50, 60), 'smoke_raw': (2000, 2500), 'co_raw': (1800, 2300)}
         crossing = old is not None and key[1] in thresholds and any(
             (old[1] >= t) != (reading['value'] >= t) for t in thresholds[key[1]])
@@ -48,7 +48,7 @@ class Rescue:
         self.outgoing = []
         self.last_retry = {}
         self.ignored = 0
-        # A restarted simulator has new agent positions. Never resume an old command implicitly.
+        # Cancel old tasks because agent positions reset on restart.
         for task in self.tasks:
             if task['status'] not in ('completed', 'cancelled', 'failed'):
                 task.update(status='cancelled', reason='Executor restarted; fresh dispatch required', updated_at=utcnow())
@@ -267,7 +267,7 @@ class Rescue:
 
 
 class LocalExecutor:
-    """MQTT command/receipt adapter for local A* agents; replace this adapter for real robots."""
+    """Execute and acknowledge local inspection commands."""
     def __init__(self, factory, rescue, publish):
         self.factory, self.rescue, self.publish = factory, rescue, publish
         self.accepted = {}

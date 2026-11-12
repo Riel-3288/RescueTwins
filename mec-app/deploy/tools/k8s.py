@@ -1,4 +1,4 @@
-"""Generate reviewable host-placement manifests; apply only to organizer-provided nodes."""
+"""Generate deployment manifests for the configured hosts."""
 import argparse
 import json
 from pathlib import Path

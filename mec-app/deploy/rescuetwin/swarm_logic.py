@@ -26,6 +26,7 @@ class Coordinator:
             for y in range(spec.height):
                 if (x,y) in blocked:continue
                 gain[x,y]=sum((a,b) not in seen and (a,b) not in obstacles for a in range(max(0,x-r),min(spec.width,x+r+1)) for b in range(max(0,y-r),min(spec.height,y+r+1)))
+        # Bid on reachable goals using travel cost and exploration gain.
         trees={};bids=[];assigned={};taken=[]
         for drone,start in sorted(positions.items()):
             others={p for d,p in positions.items() if d!=drone};dist={start:0};prev={};queue=[(0,start)]
@@ -46,9 +47,11 @@ class Coordinator:
             for target,cost in dist.items():
                 benefit=gain.get(target,0)
                 if benefit:bids.append((cost/benefit**.5-(.75 if self.goals.get(drone)==target else 0),drone,target,benefit,cost))
+        # Separate goals to reduce overlapping search areas.
         for score,drone,target,benefit,cost in sorted(bids):
             if drone in assigned or any(max(abs(target[0]-p[0]),abs(target[1]-p[1]))<=r for p in taken):continue
             assigned[drone]=dict(goal=list(target),bid=round(score,5),travel_cost=round(cost,5),information_gain=benefit,mode='explore');taken.append(target)
+        # Reserve next cells and reject moves into occupied cells.
         actions={};reserved=set()
         for drone,start in sorted(positions.items()):
             task=assigned.get(drone);path=[start]

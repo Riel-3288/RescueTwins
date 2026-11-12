@@ -1,4 +1,4 @@
-"""Render an isolated ACME configuration; never edit teammate-owned cse-config."""
+"""Generate an isolated ACME test configuration."""
 import argparse
 import os
 import secrets

@@ -1,4 +1,4 @@
-# Set the image to the actual pushed image. Create swarm-access/token first.
+# Set a pushed image and create swarm-access/token before deployment.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

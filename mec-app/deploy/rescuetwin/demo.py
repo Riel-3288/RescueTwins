@@ -149,8 +149,7 @@ class Demo:
             return True
         if not self.connected:
             return False
-        # Paho callbacks run with internal network locks. Never enter Paho while
-        # holding the factory lock: on_publish may be waiting for that same lock.
+        # Queue writes to avoid deadlocks between Paho and the factory lock.
         try:
             self.outgoing.put_nowait((topic, data))
             return True
@@ -188,7 +187,7 @@ class Demo:
                 for _ in range(self.factory.speed):
                     crossings.extend(self.factory.step())
                 self.executor.tick()
-                # Fixed wall-clock telemetry cadence, independent of simulation speed/pause.
+                # Keep telemetry timing independent of simulation speed.
                 due = now - last_publish >= 1
                 readings = self.next_sensor_readings() if due else []
                 positions = [{"agent_id": a["id"], "x_m": (a["x"] + 0.5) * self.factory.cell_m,
@@ -269,7 +268,7 @@ class Demo:
                 self.rescue.reset_simulation()
                 self.telemetry_gate.previous.clear()
             elif data.get('action') == 'goal':
-                # Validate first so a rejected goal cannot cancel a valid task.
+                # Reject invalid goals before cancelling an active task.
                 x, y = data.get('x'), data.get('y')
                 if type(x) is not int or type(y) is not int or not self.factory.inside(x,y) or (x,y) in self.factory.walls or self.factory.unsafe(x,y):
                     raise ValueError('Goal is not walkable')

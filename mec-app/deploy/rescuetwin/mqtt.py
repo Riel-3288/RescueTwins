@@ -22,7 +22,7 @@ LOG = logging.getLogger(__name__)
 
 @contextmanager
 def bridge_owner(path):
-    """An OS lock prevents two bridge processes from replaying the same outbox."""
+    """Allow only one bridge to replay this outbox."""
     handle = open(str(path) + '.lock', 'a+b')
     try:
         handle.seek(0)
@@ -45,7 +45,7 @@ def bridge_owner(path):
 
 
 def native_cin(config, originator, cse_id, target, reading):
-    """oneM2M MQTT binding (TS-0010); distinct from raw MQTT + HTTP bridge."""
+    """Create a CIN through oneM2M MQTT binding."""
     request_id = uuid.uuid4().hex
     client = make_client(config, "native-" + originator + "-" + uuid.uuid4().hex[:12], clean_session=True)
     ready, reply = threading.Event(), threading.Event()
@@ -165,9 +165,9 @@ class Bridge:
             reading = json.loads(msg.payload.decode("utf-8"))
             validate_reading(reading, self.config["devices"], msg.topic)
             self.incoming.put_nowait((reading, msg.mid, msg.qos))
-            return  # The batch writer acknowledges only after a FULL SQLite commit.
+            return  # Acknowledge only after the SQLite commit.
         except (ValueError, TypeError, KeyError, UnicodeDecodeError):
-            # Malformed messages are poison messages; acknowledge and count them.
+            # Acknowledge invalid messages to avoid endless redelivery.
             count = self.store.get("rejected", 0)
             self.store.set("rejected", count + 1)
             LOG.warning("Rejected telemetry on topic %s", msg.topic)

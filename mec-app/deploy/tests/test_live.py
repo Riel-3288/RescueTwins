@@ -26,7 +26,7 @@ def test_real_mqtt_bridge_readback_duplicate_and_zone_routing(live):
     worker = threading.Thread(target=bridge.run, daemon=True)
     worker.start()
     try:
-        # Wait for the subscription, not just a TCP connection.
+        # Wait for SUBACK before publishing.
         assert bridge.ready.wait(5)
         first, second = reading(), reading("B", "node-03")
         publish(live["mqtt"], first, live["devices"])
@@ -45,7 +45,7 @@ def test_real_mqtt_bridge_readback_duplicate_and_zone_routing(live):
 
 
 def test_native_onem2m_mqtt_binding(live):
-    # Give the ACME MQTT client time to subscribe after HTTP readiness.
+    # HTTP readiness precedes the MQTT subscription.
     time.sleep(0.3)
     value = reading()
     response = native_cin(live["mqtt"], "CNode01", "id-mn-a", "/id-mn-a/cse-mn-a/node-01/temperature", value)
@@ -106,7 +106,6 @@ def test_handover_and_bidirectional_mec_with_contract_server(live, tmp_path):
         event = ipe.cse.latest("/mec-ipe/handover")
         assert event["from_zone"] == "A" and event["to_zone"] == "B"
         assert Cse(cfg["cse"]["B"], "CAgent01").latest("/agent-01/position")["zone_id"] == "B"
-        # Create two queued oneM2M commands before polling: both must complete.
         commands = [{"command_id": uuid.uuid4().hex, "operation": "get_location", "address": "10.10.0.1"},
                     {"command_id": uuid.uuid4().hex, "operation": "get_rnis"}]
         for command in commands:
@@ -214,7 +213,7 @@ def test_network_baseline_restored_after_measurement_failure(tmp_path):
     before=len(calls)
     with pytest.raises(ValueError):
         network_experiment(mec,'https://sandbox.example/control','edge-a','EDGE',[(0,101)],fail,tmp_path/'bad.json')
-    assert len(mec.call.call_args_list)==before+1  # GET only; no mutation
+    assert len(mec.call.call_args_list)==before+1
 
 
 def test_recorded_samples_replay_and_real_mcc_measurement(live,tmp_path):
@@ -252,7 +251,7 @@ def test_onem2m_command_really_updates_mec_configuration(live,tmp_path):
     server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
     thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
     cfg=copy.deepcopy(live);cfg['ipe_state_file']=str(tmp_path/'commands.sqlite')
-    cfg['ipe_zone']='B'  # independent request queue from the existing shared-fixture tests
+    cfg['ipe_zone']='B'
     cfg['mec'].update(ams_url=f'http://127.0.0.1:{server.server_port}/amsi/v1',
                       app_instance_id='fixture-app',mobility_service_id='fixture-service')
     try:

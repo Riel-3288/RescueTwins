@@ -193,7 +193,7 @@ class Factory:
                 strength = self.fires.get((x, y), 0)
                 heat[k] = min(450, max(28.6, heat[k] + strength * 65 * dt))
                 smoke[k] = min(1, max(0, smoke[k] + strength * 0.65 * dt))
-        # Scriptable stochastic spread with a fixed seed, not combustion physics.
+        # Seeded fire spread is illustrative, not calibrated physics.
         new_fires = {}
         for cell, strength in list(self.fires.items()):
             for p in self.neighbors(*cell):
@@ -223,6 +223,7 @@ class Factory:
             self._map_signature=signature;self._mission=uuid.uuid4().hex;self._swarm_tick=0
             self.fusion=Fusion();self.pheromone=[0.0]*(self.width*self.height);self.explored=set()
         result=None;observations={}
+        # Fuse local observations before applying the shared movement plan.
         for a in self.agents:
             cells=[];r=spec.radius
             for x in range(max(0,a['x']-r),min(self.width,a['x']+r+1)):
@@ -260,6 +261,7 @@ class Factory:
                 if not self.inside(x,y) or abs(x-a['x'])+abs(y-a['y'])>1 or (x,y) in self.walls or self.unsafe(x,y):raise ValueError('Fusion returned an unsafe move')
                 if (x,y) in old and (x,y)!=(a['x'],a['y']):raise ValueError('Fusion move enters an occupied cell')
                 destinations.append((x,y))
+            # Validate the whole round before moving any drone.
             if len(set(destinations))!=len(destinations):raise ValueError('Fusion reservations collide')
         except Exception as exc:
             self.swarm_error=f'{type(exc).__name__}: {exc}';self.paused=True

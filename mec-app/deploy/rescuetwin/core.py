@@ -64,7 +64,7 @@ def validate_reading(value, devices, topic=None):
     elif type(number) not in (int, float) or not math.isfinite(number):
         raise ValueError("value must be a finite number")
     elif value["quality"] == "valid":
-        # These are format checks, not calibrated hazard thresholds.
+        # Validate the format; hazard thresholds are configured separately.
         if sensor == "humidity" and not 0 <= number <= 100:
             raise ValueError("humidity must be between 0 and 100 percent")
         if sensor in ("smoke_raw", "co_raw") and number < 0:
@@ -169,7 +169,7 @@ class Store:
                                      time.time() + min(60, 2 ** min(attempts, 6)), error[:300], key))
 
     def recover_processing(self):
-        # Called only while this bridge owns the OS process lock; a crash may leave claims.
+        # The process lock makes recovery of interrupted claims safe.
         with self.lock, self.db:
             self.db.execute("UPDATE outbox SET status='pending' WHERE status='processing'")
 

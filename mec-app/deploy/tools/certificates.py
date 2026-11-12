@@ -1,4 +1,4 @@
-"""Generate a private demo CA and distinct device identities. Never commit the output."""
+"""Generate private demo certificates; keep the output untracked."""
 import argparse
 import ipaddress
 import secrets

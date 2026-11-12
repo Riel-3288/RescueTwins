@@ -45,7 +45,6 @@ def live_spec(settings=None):
     c=dict(settings or {});w=c.get('width',LIVE_WIDTH);h=c.get('height',LIVE_HEIGHT);n=c.get('drone_count',LIVE_DRONES)
     if type(n) is not int or not 2<=n<=16:raise ValueError('drone_count must be 2..16')
     z=c.get('zone_x',w//2)
-    # Keep the familiar factory obstacles; scale no coordinates implicitly.
     obstacles={(15,y) for y in range(3,min(h-2,27)) if y not in (8,9,10,20,21,22)}
     obstacles|={(34,y) for y in range(3,min(h-2,27)) if y not in (12,13,14,15,24,25)}
     obstacles|={(x,y) for x in range(21,min(29,w)) for y in (5,6,24,25) if y<h}

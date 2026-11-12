@@ -50,7 +50,7 @@ def test_legacy_queue_migration_priority_atomic_claim_and_crash_recovery(tmp_pat
     assert {r[0] for r in store.claim_batch('A')} == {'legacy',event}
     store.finish_batch([(event,0,None,False),('legacy',1,'temporary failure',False)])
     assert store.counts() == {'delivered':1,'pending':1}
-    assert store.pending() is None  # Backoff is respected.
+    assert store.pending() is None
 
 
 def test_second_bridge_cannot_own_same_database(tmp_path):
@@ -95,7 +95,7 @@ def test_alarm_dedup_stale_invalid_hysteresis_source_isolation_and_persistence(t
     assert restored.incidents[0]['status'] == 'resolved'
     assert restored.tasks[0]['status'] == 'cancelled'
     restored.ingest(hot)
-    assert len(restored.incidents) == 1  # Replaying an old alarm cannot reopen it after restart.
+    assert len(restored.incidents) == 1  # Old readings cannot reopen a resolved incident.
 
 
 def test_clear_requires_two_samples_of_the_trigger_channel(tmp_path):

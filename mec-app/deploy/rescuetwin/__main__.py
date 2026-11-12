@@ -24,7 +24,7 @@ def provision(cfg):
     for zone, endpoint in cfg["cse"].items():
         if zone not in ("A", "B", "IN"):
             continue
-        # This uses the same per-AE originators as runtime uploads, preserving aei.
+        # Keep AE identities consistent with runtime uploads.
         for name, info in cfg["devices"].items():
             if zone in info["zones"]:
                 Cse(endpoint, info["originator"]).ensure_ae(name, list(UNITS))
@@ -37,8 +37,7 @@ def provision(cfg):
 
 
 def benchmark(cfg, count, output):
-    # Matched workloads: CIN write + read-back. This measures storage round-trip,
-    # not ESP32-to-reroute latency. VIA_IN requires actual Mcc registration.
+    # Measure matched write/read round trips; VIA_IN requires Mcc registration.
     paths = ("A", "VIA_IN") if "VIA_IN" in cfg["cse"] else ("A", "IN")
     clients = {zone: Cse(cfg["cse"][zone], cfg["cse"][zone].get("originator", "CBenchmark")) for zone in paths}
     rows = []
@@ -118,7 +117,7 @@ def selected(plan, skip_invalid):
 def replay(cfg, plan, skip_invalid=False, factory=Cse):
     if not cfg.get("allow_cse_writes", True):
         raise ValueError("Team profile is read-only; register an independent AE and agree ACPs before enabling writes")
-    records = selected(plan, skip_invalid)  # validate the entire batch before any write
+    records = selected(plan, skip_invalid)  # Validate the batch before writing.
     result = dict(input_sha256=plan['input_sha256'], rejected=plan['rejected'], events=[], complete=False)
     for index, reading in records:
         client = factory(cfg['cse'][reading['zone_id']], cfg['devices'][reading['device_id']]['originator'])
@@ -141,7 +140,6 @@ def benchmark_samples(cfg, plan, count, output, skip_invalid=False, factory=Cse)
     records = selected(plan, skip_invalid)
     if count < 1: raise ValueError('count must be positive')
     if 'VIA_IN' not in cfg['cse']: raise ValueError('configure actual VIA_IN Mcc route; independent IN storage is not a substitute')
-    # Require an explicitly configured cross-CSE identity for every device.
     via = cfg['cse']['VIA_IN']
     for _, reading in records:
         if reading['zone_id'] != 'A': raise ValueError('this VIA_IN comparison is explicitly scoped to MN-A')
@@ -201,7 +199,7 @@ def network_experiment(mec, base, element, kind, cases, measure, output):
             raise ValueError('invalid latency or loss percentage')
     report = dict(started_at=utcnow(), baseline=baseline, cases=[], restored=False,
                   traffic_path_verified=False, note='Operator must prove application traffic traverses the emulated path.')
-    save(output, report)  # recovery information is durable before the first change
+    save(output, report)  # Save recovery state before changing the network.
     url = base.rstrip('/')+'/events/NETWORK-CHARACTERISTICS-UPDATE'
     def apply(net):
         mec.call(url, 'POST', dict(name='rescuetwin-network-experiment', type='NETWORK-CHARACTERISTICS-UPDATE',

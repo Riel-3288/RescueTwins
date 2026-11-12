@@ -17,7 +17,7 @@ LOG = logging.getLogger(__name__)
 
 
 class SystemTrustAdapter(requests.adapters.HTTPAdapter):
-    """Use OS trust roots (including Windows roots), with full TLS validation."""
+    """Use OS trust roots without disabling TLS checks."""
     def build_connection_pool_key_attributes(self, request, verify, cert=None):
         host, pool = super().build_connection_pool_key_attributes(request, verify, cert)
         if verify is True:
@@ -106,7 +106,7 @@ class Ipe:
             return
         origin = self.config["agents"][agent]["originator"]
         target = Cse(self.config["cse"][state["zone"]], origin)
-        # Prepare the target before committing the serving-zone change.
+        # Prepare the target before switching zones.
         target.ensure_ae(agent, ["position"])
         record = {"agent_id": agent, "zone_id": state["zone"], "x_m": round(x, 3), "y_m": round(y, 3),
                   "observed_at": observed, "source": "mec-sandbox", "mec_address": user["address"]}
@@ -165,13 +165,13 @@ class Ipe:
                         response = {"command_id": command_id, "ok": False, "error": str(exc)}
                     except requests.RequestException as exc:
                         response = {"command_id": command_id, "ok": False, "error": type(exc).__name__}
-                    # Save before posting, so a lost CSE response cannot repeat the MEC call.
+                    # Save the response before posting to prevent repeated MEC calls.
                     self.store.set("command-response:" + command_id, {"request_digest": digest(command), "response": response})
             self.cse.cin("/mec-ipe/responses", response, digest({"request_ri": cin["ri"]}))
             self.store.set(key, True)
 
     def cycle(self):
-        # A failed location poll must not prevent command processing or RNIS.
+        # Isolate failures between location, commands and RNIS.
         actions = [self.poll_locations, self.commands]
         if self.config["mec"].get("rnis_url"):
             actions.append(lambda: self.cse.cin("/mec-ipe/rnis", {"received_at": utcnow(), "service": "MEC012", "data": self.mec.rnis()}))

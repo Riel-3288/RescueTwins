@@ -25,4 +25,4 @@ foreach ($demoProcessId in $targets) {
     }
 }
 if ($targets.Count -eq 0) { Write-Output 'No local RescueTwins demo processes are listening.' }
-# This recovery helper never deletes the outbox, CSE databases or incident history.
+# Preserve databases and incident history.
