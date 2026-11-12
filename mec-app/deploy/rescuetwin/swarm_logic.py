@@ -1,74 +1,66 @@
-"""Deterministic frontier bidding and collision-free one-step reservations."""
+"""Frontier auction, spatial repulsion and synchronous collision reservations."""
 import copy
 import heapq
+try:
+    from .layout import legacy_spec,LEGACY_WIDTH,LEGACY_HEIGHT
+except ImportError:
+    from layout import legacy_spec,LEGACY_WIDTH,LEGACY_HEIGHT
 
-WIDTH, HEIGHT, RADIUS = 50, 30, 2
-
-def walls():
-    return {(25,y) for y in range(30) if y not in (4,5,20,21)} | {(x,6) for x in range(2,8)} | {(x,18) for x in range(32,38)}
-
-def neighbors(p):
+WIDTH,HEIGHT,RADIUS=LEGACY_WIDTH,LEGACY_HEIGHT,2
+def walls():return set(legacy_spec().walls)
+walls_cached=walls()
+def neighbors(p,width=WIDTH,height=HEIGHT):
     x,y=p
     for q in ((x-1,y),(x+1,y),(x,y-1),(x,y+1)):
-        if 0<=q[0]<WIDTH and 0<=q[1]<HEIGHT:yield q
+        if 0<=q[0]<width and 0<=q[1]<height:yield q
 
 class Coordinator:
-    def __init__(self):self.goals={};self.signature=None;self.cached=None
-
-    def plan(self,positions,seen,hazards):
-        signature=(tuple(sorted(positions.items())),frozenset(seen),tuple(sorted(hazards.items())))
+    def __init__(self,spec=None):self.spec=spec or legacy_spec();self.goals={};self.signature=None;self.cached=None
+    def plan(self,positions,seen,hazards,targets=None):
+        targets=targets or {};spec=self.spec;obstacles=set(spec.walls)
+        signature=(tuple(sorted(positions.items())),frozenset(seen),tuple(sorted(hazards.items())),tuple(sorted(targets.items())))
         if signature==self.signature:return copy.deepcopy(self.cached)
-        blocked=walls()|{p for p,h in hazards.items() if h>0.6}
+        blocked=obstacles|{p for p,h in hazards.items() if h>0.6};r=spec.radius
         gain={}
-        for x in range(WIDTH):
-            for y in range(HEIGHT):
+        for x in range(spec.width):
+            for y in range(spec.height):
                 if (x,y) in blocked:continue
-                gain[x,y]=sum((a,b) not in seen and (a,b) not in walls_cached
-                    for a in range(max(0,x-RADIUS),min(WIDTH,x+RADIUS+1))
-                    for b in range(max(0,y-RADIUS),min(HEIGHT,y+RADIUS+1)))
-        bids=[];trees={}
+                gain[x,y]=sum((a,b) not in seen and (a,b) not in obstacles for a in range(max(0,x-r),min(spec.width,x+r+1)) for b in range(max(0,y-r),min(spec.height,y+r+1)))
+        trees={};bids=[];assigned={};taken=[]
         for drone,start in sorted(positions.items()):
-            other={p for d,p in positions.items() if d!=drone}
-            distance={start:0};previous={};queue=[(0,start)]
+            others={p for d,p in positions.items() if d!=drone};dist={start:0};prev={};queue=[(0,start)]
             while queue:
                 cost,p=heapq.heappop(queue)
-                if cost!=distance[p]:continue
-                for q in neighbors(p):
-                    if q in blocked or q in other:continue
-                    new=cost+1+4*hazards.get(q,0)
-                    if new<distance.get(q,float('inf')):
-                        distance[q]=new;previous[q]=p;heapq.heappush(queue,(new,q))
-            trees[drone]=(distance,previous)
-            for target,cost in distance.items():
+                if cost!=dist[p]:continue
+                for q in neighbors(p,spec.width,spec.height):
+                    if q in blocked or q in others:continue
+                    repel=sum(.6/(1+abs(q[0]-a)+abs(q[1]-b)) for a,b in others)
+                    new=cost+1+4*hazards.get(q,0)+repel
+                    if new<dist.get(q,float('inf')):dist[q]=new;prev[q]=p;heapq.heappush(queue,(new,q))
+            trees[drone]=(dist,prev)
+            if drone in targets:
+                target=targets[drone]
+                if target in dist and target not in blocked:
+                    assigned[drone]=dict(goal=list(target),bid=0,travel_cost=dist[target],information_gain=gain.get(target,0),mode='manual');taken.append(target)
+                continue
+            for target,cost in dist.items():
                 benefit=gain.get(target,0)
-                if not benefit:continue
-                # Prefer nearby information gain; retain a useful goal to avoid oscillation.
-                score=cost/(benefit**0.5)-(0.75 if self.goals.get(drone)==target else 0)
-                bids.append((score,drone,target,benefit,cost))
-        assigned={};taken=[]
+                if benefit:bids.append((cost/benefit**.5-(.75 if self.goals.get(drone)==target else 0),drone,target,benefit,cost))
         for score,drone,target,benefit,cost in sorted(bids):
-            if drone in assigned or any(max(abs(target[0]-p[0]),abs(target[1]-p[1]))<=RADIUS for p in taken):continue
-            assigned[drone]=dict(goal=list(target),bid=round(score,5),travel_cost=round(cost,5),information_gain=benefit)
-            taken.append(target)
-        # Reserve next cells; disallow moving into another drone's current cell (also prevents swaps).
+            if drone in assigned or any(max(abs(target[0]-p[0]),abs(target[1]-p[1]))<=r for p in taken):continue
+            assigned[drone]=dict(goal=list(target),bid=round(score,5),travel_cost=round(cost,5),information_gain=benefit,mode='explore');taken.append(target)
         actions={};reserved=set()
         for drone,start in sorted(positions.items()):
-            assignment=assigned.get(drone)
-            path=[start]
-            if assignment:
-                goal=tuple(assignment['goal']);path=[goal];previous=trees[drone][1]
-                while path[-1]!=start:path.append(previous[path[-1]])
+            task=assigned.get(drone);path=[start]
+            if task:
+                path=[tuple(task['goal'])]
+                while path[-1]!=start:path.append(trees[drone][1][path[-1]])
                 path.reverse()
             nxt=path[1] if len(path)>1 else start
             if nxt in reserved or nxt in {p for d,p in positions.items() if d!=drone}:nxt=start
             reserved.add(nxt)
-            actions[drone]=dict(position=list(nxt),status='exploring' if assignment else 'no_reachable_frontier',
-                                path=[list(p) for p in path],assignment=assignment)
-        self.goals={d:tuple(a['goal']) for d,a in assigned.items()}
-        result = {'policy':'frontier_auction_v1','actions':actions,'assignments':assigned,
-                'bids_evaluated':len(bids),'collision_policy':'unique_next_cell_no_swaps',
-                'unknown_cells':WIDTH*HEIGHT-len(walls_cached)-len(set(seen)-walls_cached)}
-        self.signature=signature;self.cached=copy.deepcopy(result)
-        return result
-
-walls_cached=walls()
+            actions[drone]=dict(position=list(nxt),status='exploring' if task else 'no_reachable_frontier',path=list(map(list,path)),assignment=task)
+        self.goals={d:tuple(t['goal']) for d,t in assigned.items()}
+        result=dict(policy='frontier_auction_v1',actions=actions,assignments=assigned,bids_evaluated=len(bids),
+            collision_policy='unique_next_cell_no_swaps',unknown_cells=spec.width*spec.height-len(obstacles)-len(set(seen)-obstacles))
+        self.signature=signature;self.cached=copy.deepcopy(result);return result

@@ -11,6 +11,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
+from .layout import LEGACY_WIDTH,LEGACY_HEIGHT,CELL_M,live_spec
 
 UNITS = {"temperature": "degC", "humidity": "percent", "pressure": "hPa",
          "smoke_raw": "mV", "co_raw": "mV", "presence": "boolean"}
@@ -95,9 +96,11 @@ def load_config(path):
         if (type(rule.get('trigger')) not in (int,float) or type(rule.get('clear')) not in (int,float)
                 or not all(math.isfinite(rule[k]) for k in ('trigger','clear')) or rule['clear'] >= rule['trigger']):
             raise ValueError('rescue clear threshold must be below the trigger threshold')
+    live=live_spec(cfg['live_factory']) if cfg.get('live_factory') else None
+    bounds=[('x_m',live.width*live.cell_m),('y_m',live.height*live.cell_m)] if live else [('x_m',cfg.get('factory',{}).get('width_m',LEGACY_WIDTH*CELL_M)),('y_m',cfg.get('factory',{}).get('height_m',LEGACY_HEIGHT*CELL_M))]
     for device, pos in rescue.get('sensor_positions', {}).items():
         if device not in cfg['devices'] or any(type(pos.get(k)) not in (int,float) or not math.isfinite(pos[k])
-                                             or not 0 <= pos[k] < bound for k,bound in [('x_m',100),('y_m',60)]):
+                                             or not 0 <= pos[k] < bound for k,bound in bounds):
             raise ValueError('rescue sensor position must map a registered device inside the factory')
     return cfg
 

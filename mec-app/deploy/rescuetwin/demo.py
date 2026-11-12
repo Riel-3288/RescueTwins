@@ -37,7 +37,10 @@ LOG = logging.getLogger(__name__)
 class Demo:
     def __init__(self, config, bridge=None):
         self.config, self.bridge = config, bridge
-        self.factory = Factory()
+        self.factory = Factory(config=config.get("live_factory"))
+        for name,pos in config.get('rescue',{}).get('sensor_positions',{}).items():
+            self.factory.sensor_positions[name]=(int(pos['x_m']/self.factory.cell_m),int(pos['y_m']/self.factory.cell_m))
+        self.live_only=False
         self.lock = threading.RLock()
         self.stop = threading.Event()
         self.mqtt_ready = threading.Event()
@@ -76,7 +79,7 @@ class Demo:
     def next_sensor_readings(self):
         if self.file_rows is None:
             return self.factory.readings()
-        if not self.connected or not self.mqtt_ready.is_set():
+        if not self.live_only and (not self.connected or not self.mqtt_ready.is_set()):
             return []
         rows,self.file_rows = self.file_rows,[]
         return rows
@@ -120,29 +123,30 @@ class Demo:
                     self.cse_acks += 1
                 return
             validate_reading(value, self.config["devices"], message.topic)
-            with self.lock:
-                self.received += 1
-                self.last_received = utcnow()
-                key = (value['device_id'], value['source'], value['sensor_type'])
-                if key not in self.latest or utc_timestamp(value['observed_at']) >= utc_timestamp(self.latest[key]['observed_at']):
-                    self.latest[key] = value
-                self.rescue.ingest(value)
-                self.messages.appendleft({"topic": message.topic, "reading": value, "received_at": self.last_received})
-                self.received_rows.append(value)
+            with self.lock:self.accept_reading(value,message.topic)
         except (ValueError, TypeError, KeyError, UnicodeDecodeError):
             with self.lock:
                 self.rejected += 1
 
-    def start(self):
-        self.publisher = threading.Thread(target=self.publish_loop, name='mqtt-dashboard-publisher', daemon=True)
-        self.publisher.start()
-        mqtt = self.config["mqtt"]
-        self.client.connect_async(mqtt["host"], mqtt["port"], 30)
-        self.client.loop_start()
-        self.worker = threading.Thread(target=self.run, name="factory-simulator", daemon=True)
-        self.worker.start()
+    def accept_reading(self,value,topic):
+        self.received+=1;self.last_received=utcnow()
+        key=(value['device_id'],value['source'],value['sensor_type'])
+        if key not in self.latest or utc_timestamp(value['observed_at'])>=utc_timestamp(self.latest[key]['observed_at']):self.latest[key]=value
+        self.rescue.ingest(value)
+        self.messages.appendleft(dict(topic=topic,reading=value,received_at=self.last_received));self.received_rows.append(value)
+
+    def start(self,live_only=False):
+        self.live_only=live_only
+        if not live_only:
+            self.publisher=threading.Thread(target=self.publish_loop,name='mqtt-dashboard-publisher',daemon=True);self.publisher.start()
+            self.client.connect_async(self.config['mqtt']['host'],self.config['mqtt']['port'],30);self.client.loop_start()
+        self.worker=threading.Thread(target=self.run,name='factory-simulator',daemon=True);self.worker.start()
 
     def publish(self, topic, data):
+        if self.live_only:
+            if topic.startswith('rescuetwin-control/commands/'):self.executor.command(data)
+            elif topic.startswith('rescuetwin-control/feedback/'):self.rescue.feedback(data)
+            return True
         if not self.connected:
             return False
         # Paho callbacks run with internal network locks. Never enter Paho while
@@ -187,14 +191,20 @@ class Demo:
                 # Fixed wall-clock telemetry cadence, independent of simulation speed/pause.
                 due = now - last_publish >= 1
                 readings = self.next_sensor_readings() if due else []
-                positions = [{"agent_id": a["id"], "x_m": (a["x"] + 0.5) * 2,
-                              "y_m": (a["y"] + 0.5) * 2, "zone_id": a["zone"],
+                positions = [{"agent_id": a["id"], "x_m": (a["x"] + 0.5) * self.factory.cell_m,
+                              "y_m": (a["y"] + 0.5) * self.factory.cell_m, "zone_id": a["zone"],
                               "source": "simulation", "observed_at": utcnow()}
                              for a in self.factory.agents] if due else []
             if due:
                 last_publish = now
             for reading in readings:
                 backlog = self.bridge.stats()['counts'].get('pending', 0) if self.bridge else 0
+                if self.live_only:
+                    try:
+                        validate_reading(reading,self.config['devices'])
+                        with self.lock:self.accept_reading(reading,'recorded-file' if self.file_rows is not None else 'local-simulation')
+                    except (ValueError,KeyError,TypeError):self.rejected+=1
+                    continue
                 if self.file_rows is not None or self.telemetry_gate.accept(reading, backlog):
                     self.publish(f"rescuetwin/{reading['zone_id']}/{reading['device_id']}/{reading['sensor_type']}", reading)
             for position in positions:
@@ -206,6 +216,7 @@ class Demo:
         with self.lock:
             value = self.factory.snapshot()
             value["recorded"] = self.recorded.snapshot()
+            value["live_mode"] = self.live_only
             value["robot_tasks"] = self.robot.tasks
             value["mec_grid_context"] = self.mec_context
             value['sensor_input'] = dict(mode='recorded-file' if self.file_rows is not None else 'generated',
@@ -244,6 +255,9 @@ class Demo:
             self.recorded.plan(data.get('drone_id'), data.get('goal'), data.get('battery', 100))
         elif data.get('action') == 'drone_simulate':
             self.recorded.simulate(data.get('drone_id'), data.get('plan_id'))
+        elif data.get('action') == 'resume_swarm':
+            for agent in self.factory.agents:self.rescue.cancel_agent(agent['id'],'Operator resumed autonomous exploration')
+            self.factory.command(data)
         elif data.get('action') == 'ack_incident':
             self.rescue.acknowledge(data.get('incident_id'))
         elif data.get('action') == 'retry_incident':
@@ -460,6 +474,9 @@ def main():
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--host", choices=["127.0.0.1", "0.0.0.0"], default="127.0.0.1", help="Bind address; containers need 0.0.0.0")
     parser.add_argument("--local-broker", action="store_true")
+    parser.add_argument('--live-swarm',action='store_true',help='Run the live Fusion swarm dashboard without MQTT')
+    parser.add_argument('--drone-count',type=int,choices=range(2,17))
+    parser.add_argument('--swarm-url',help='Optional separate Fusion HTTP service; default is embedded Fusion')
     parser.add_argument("--recorded-only", action="store_true", help="Offline files only; no MQTT or CSE processes")
     parser.add_argument("--with-cse", action="store_true", help="Launch isolated local ACME IN/A/B and bridge")
     parser.add_argument("--bridge", action="store_true", help="Connect bridge to CSE endpoints already running in config")
@@ -469,6 +486,10 @@ def main():
     args = parser.parse_args()
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
     cfg = copy.deepcopy(load_config(args.config))
+    cfg.setdefault('live_factory',{})
+    if args.drone_count:cfg['live_factory']['drone_count']=args.drone_count
+    if args.swarm_url:cfg['live_factory']['swarm_url']=args.swarm_url
+    if args.live_swarm and (args.recorded_only or args.local_broker or args.with_cse or args.bridge):parser.error('--live-swarm is independent of MQTT/CSE/replay-only modes')
     if args.recorded_only and (args.local_broker or args.with_cse or args.bridge):
         parser.error("--recorded-only does not start MQTT or CSE components")
     if (args.bridge or args.with_cse) and not cfg.get("allow_cse_writes", True):
@@ -501,10 +522,13 @@ def main():
             worker.start()
         demo = Demo(cfg, bridge)
         if not args.recorded_only:
-            demo.start()
+            demo.start(live_only=args.live_swarm)
+            if args.live_swarm:demo.factory.command({"action":"resume"})
         server = make_server(demo, args.port, args.host)
         print(f"Dashboard: http://127.0.0.1:{args.port}", flush=True)
-        if args.recorded_only:
+        if args.live_swarm:
+            print("Live swarm: eight configurable drones; Fusion map sharing and autonomous exploration.",flush=True)
+        elif args.recorded_only:
             print("Recorded Mission: offline files; no MQTT broker, bridge, or CSE writes. Open /#recorded.", flush=True)
         else:
             print(f"Local demo MQTT: mqtt://{cfg['mqtt']['host']}:{cfg['mqtt']['port']} (isolated example)", flush=True)

@@ -50,12 +50,10 @@ def sensor_report(rows, config):
 
 
 def sariel_grid():
-    # Matches simulation/rescue_sim.py build_walls; all positions remain GRID CELLS.
-    walls = {(25,y) for y in range(30) if y not in (4,5,20,21)}
-    walls |= {(x,6) for x in range(2,8)} | {(x,18) for x in range(32,38)}
-    return {'width':50, 'height':30, 'zone_width':25,
-            'walls':sorted(map(list,walls)), 'coordinates':'grid_cells',
-            'layout':'simulation/rescue_sim.py (50 columns x 30 rows; zones A/B)'}
+    from .layout import legacy_spec
+    spec=legacy_spec()
+    return dict(width=spec.width,height=spec.height,zone_width=spec.zone_x,walls=sorted(map(list,spec.walls)),
+                coordinates='grid_cells',layout='Legacy team simulation (separate from live factory)')
 
 
 def route(grid, start, goal, blocked=()):
@@ -115,7 +113,7 @@ class RecordedMission:
                         raise ValueError('Grid coordinates must be integers')
                     if not (0 <= row['x'] < self.grid['width'] and 0 <= row['y'] < self.grid['height']):
                         raise ValueError('Coordinates outside the Sariel grid')
-                    if row.get('zone_id') != 'AB'[row['x']//self.grid['zone_width']]:
+                    if row.get('zone_id') != ('A' if row['x']<self.grid['zone_width'] else 'B'):
                         raise ValueError('zone_id differs from the grid position')
                     if row['kind'] in ('node', 'position') and [row['x'],row['y']] in self.grid['walls']:
                         raise ValueError('Node or drone position is inside a wall')
@@ -226,7 +224,7 @@ class RecordedMission:
             targets = [(r['x'],r['y']) for r in frame['victims']]
             if not targets:
                 zone = 'AB'.index(agent['zone_id'])
-                targets = [(zone*25+23, 2), (zone*25+23, 17), (zone*25+2, 17), (zone*25+2, 2)]
+                targets = [(zone*self.grid['zone_width']+self.grid['zone_width']-2, 2), (zone*self.grid['zone_width']+self.grid['zone_width']-2, self.grid['height']-3), (zone*self.grid['zone_width']+2, self.grid['height']-3), (zone*self.grid['zone_width']+2, 2)]
         choices = []
         for target in targets:
             path = route(self.grid, start, target, blocked)

@@ -1,9 +1,10 @@
 param(
-    [ValidateSet('Recorded','LocalDemo','LocalCse','Swarm','SwarmHeadless','SwarmService')]
+    [ValidateSet('Recorded','LocalDemo','LocalCse','Swarm','SwarmHeadless','SwarmService','LiveSwarm')]
     [string]$Mode = 'Recorded',
     [switch]$WithoutCse,
     [switch]$ExistingBroker,
     [switch]$Benchmark,
+    [ValidateRange(2,16)][int]$DroneCount=8,
     [switch]$CheckOnly
 )
 $ErrorActionPreference = 'Stop'
@@ -49,7 +50,9 @@ try {
         & $demoPython @simulationArguments
     } else {
         $demoArguments = @('-X','utf8','-m','rescuetwin.demo')
-        if ($Mode -eq 'Recorded') {
+        if ($Mode -eq 'LiveSwarm') {
+            $demoArguments += @('--live-swarm','--drone-count',"$DroneCount")
+        } elseif ($Mode -eq 'Recorded') {
             $demoArguments += @('--config',(Join-Path $PSScriptRoot 'config.team.example.json'),'--recorded-only')
         } else {
             if (-not $ExistingBroker) { $demoArguments += '--local-broker' }

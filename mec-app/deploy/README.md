@@ -1,3 +1,5 @@
+> 实时 swarm 演示：`start-demo.ps1 -Mode LiveSwarm`，默认80×40、8架、A/B。见 [运行说明](README_RUN.md)。
+
 > 2026-11-11 当前版本已改为 50×30、A/B 两区、drone-A/B，并增加独立 MEC swarm-fusion 服务。当前启动与部署以 [README_RUN.md](README_RUN.md) 为准；下文早期三分区说明保留为历史记录。
 
 > 简单启动方法：请先看 [Simulation / Dashboard 快速启动](README_RUN.md)。

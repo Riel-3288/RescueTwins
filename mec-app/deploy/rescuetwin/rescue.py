@@ -97,7 +97,7 @@ class Rescue:
         if active and incident is None:
             position = self.settings.get('sensor_positions', {}).get(key[0])
             if position:
-                x, y = int(position['x_m']/2), int(position['y_m']/2)
+                x, y = int(position['x_m']/self.factory.cell_m), int(position['y_m']/self.factory.cell_m)
             elif key[0] in self.factory.sensor_positions:
                 x, y = self.factory.sensor_positions[key[0]]
             else:
@@ -249,7 +249,7 @@ class Rescue:
     def hold_agent(self, task):
         agent = next((a for a in self.factory.agents if a['id'] == task['agent_id']), None)
         if agent and agent['goal'] == task['goal']:
-            agent.update(goal=[agent['x'], agent['y']], path=[], status='ready', _planned=False)
+            agent.update(goal=[agent['x'], agent['y']], path=[], status='ready', _planned=False, _manual=False)
 
     def retry(self, incident_id):
         incident = next((i for i in self.incidents if i['incident_id'] == incident_id and i['status'] != 'resolved'), None)

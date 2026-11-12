@@ -2,7 +2,42 @@
 
 需要 Python 3.13。以下 Windows 命令都在项目根目录执行。
 
-## 1. 启动 MEC 服务
+## 给评委看的实时 Swarm（新）
+
+在 repo 根目录的 VS Code PowerShell 运行一个终端：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$PWD\mec-app\deploy\start-demo.ps1" -Mode LiveSwarm
+```
+
+打开 http://127.0.0.1:8765/#overview。默认80×40网格、8架drone、A/B两区，会自动开始实时探索。不是 JSONL 回放，也不需要 Broker、CSE 或 Hosted Sandbox。想展示6架，追加 `-DroneCount 6`。
+
+- 顶部 Live Swarm Exploration 显示实际 fleet、覆盖率、共享格数、Fusion轮次。
+- 选择 Exploration 图层查看共享探索地图；Temperature/Smoke 仍显示示例火情场。
+- Run Fire Demo 在实时地图加火；drone 根据各自的局部观测避开已知危险。
+- 在 Agent Status 可以查看8架的目标/路线。手动设置目标会暂时覆盖该drone的swarm控制；Resume swarm control 重新启用自主探索。
+- 默认是嵌入式 Fusion：每架drone逐轮报告位置及局部观测，Factory只使用合并地图的决策移动。界面明确显示 Embedded Fusion，不冒充已部署到远程MEC。
+
+要演示独立 HTTP Fusion，终端1运行下方 SwarmService，终端2在 repo 根目录运行：
+
+```powershell
+$env:PYTHONPATH = "$PWD\mec-app\deploy"
+& "$PWD\mec-app\deploy\.venv\Scripts\python.exe" -m rescuetwin.demo --live-swarm --swarm-url http://127.0.0.1:8780
+```
+
+服务错误会暂停机群并显示原因，不会静默改用本地地图。
+
+配置在 config.example.json 的 live_factory：width、height、zone_x、cell_m、drone_count、radius、swarm_url；默认80、40、40、2、8、2、空字符串。zone_x 是格坐标，默认物理边界80m，地图160×80m。改布局/注册表会新建Fusion任务，重新计算覆盖率。
+
+共享几何定义在 rescuetwin/layout.py；Fusion按每个任务的map配置和drone_ids校验，不再固定两架或50×30。原 simulation/rescue_sim.py 与其旧回放仍为50×30，两者是明确独立的地图，未重写队友文件。
+
+本轮已验证6/8架实时探索、地图融合、HTTP服务、手动目标、失联暂停、原传感器派单闭环及实际浏览器3D/探索层。实时演示的示例火情/网格运动不是实体无人机飞控或真实MEC021迁移。
+
+## Runtime 清理
+
+已清除14个 pytest/npm/搬迁临时缓存目录。runtime 还包含队列数据库、演示CSE状态和联调报告，并非全部是缓存；这些已保留。测试改用系统临时目录，不重新写入这一批 runtime/pytest-*。
+
+## 1. 启动 MEC 服务（原独立仿真入口）
 
 打开第一个终端，运行后保持窗口打开：
 
@@ -120,3 +155,22 @@ powershell -ExecutionPolicy Bypass -File .\mec-app\deploy\start-demo.ps1 -Mode S
 需要把输出放到独立目录时，在项目根目录调用 Python 适配器并加 --output-dir（不改变原输入文件）。默认启动器仍使用 simulation 中的两个输出 JSONL，Dashboard 可读取其回放。
 
 本轮验证还包含独立命令行 quick/no-anim 导出至临时目录、认证失败停止执行、重复报告稳定性与非法报告不改变任务状态。部署配置已更新为包含 swarm_logic.py；本次没有完成 Docker/Ubuntu/Kubernetes 实际部署，也未 commit/push。
+
+
+### 本轮实时验证与清理记录
+
+- 6/8架实时Factory、动态尺寸/边界、独立HTTP Fusion、避碰、手动接管/恢复、Fusion故障暂停，以及原MQTT/CSE派单闭环通过。
+- 旧协议/记录/字段兼容回归34项通过；前端模型7项通过；最终LiveSwarm专项6项通过。浏览器确认8架运动、覆盖率增长、3D与探索层、8个控制选项及旧回放。
+- LiveSwarm 的本地任务/回执无需 Broker；画面不会把文件读数当作MQTT接收。
+- 队友15个原有文件校验值保持不变。未 commit/push；容器入口可导入，未把它说成已完成Docker/VM部署。
+- 正常 runtime 清理14个缓存目录；旧重复副本 RescueTwins/mec-app/deploy/runtime 中另有6个受Windows访问权限保护的历史pytest缓存，删除及takeown尝试均被系统拒绝，仍保留。需Windows管理员处理。数据库和联调报告未删。
+
+
+剩余旧缓存可在管理员 PowerShell 中、repo 根目录运行下面命令。脚本只处理 runtime 下的 pytest-*、npm-cache、relocation-temp，不包含数据库或报告：
+
+```powershell
+# 先预览，不修改任何权限或文件
+powershell -ExecutionPolicy Bypass -File "$PWD\mec-app\deploy\tools\clean-runtime.ps1" -WhatIf
+# 确认预览范围后执行
+powershell -ExecutionPolicy Bypass -File "$PWD\mec-app\deploy\tools\clean-runtime.ps1"
+```

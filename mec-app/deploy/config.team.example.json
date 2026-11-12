@@ -168,5 +168,14 @@
   "simulation_cse_routing": {
     "A": "MN-A",
     "B": "MN-B"
+  },
+  "live_factory": {
+    "width": 80,
+    "height": 40,
+    "zone_x": 40,
+    "cell_m": 2,
+    "drone_count": 8,
+    "radius": 2,
+    "swarm_url": ""
   }
 }

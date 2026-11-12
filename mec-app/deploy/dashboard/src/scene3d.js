@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-export const AGENT_COLORS = ['#4084c2','#8b75ba','#309f92','#d0953b'];
+export const AGENT_COLORS = ['#4084c2','#8b75ba','#309f92','#d0953b','#d15e6e','#20a9a4','#b465c6','#759c32'];
 
 function disposeTree(group) {
   const geometries = new Set(), materials = new Set(), textures = new Set();
@@ -78,7 +78,7 @@ export class FactoryScene {
   }
 
   resetCamera() {
-    this.camera.position.set(85,102,96); this.controls.target.set(0,0,0); this.controls.update();
+    const span=Math.max((this.state?.width||80)*(this.state?.cell_m||2),(this.state?.height||40)*(this.state?.cell_m||2));this.camera.position.set(span*.8,span*1.05,span*.85);this.controls.maxDistance=span*4;this.camera.far=span*6;this.camera.updateProjectionMatrix(); this.controls.target.set(0,0,0); this.controls.update();
   }
 
   moveCamera(action) {
@@ -90,22 +90,19 @@ export class FactoryScene {
 
   buildFactory(state) {
     const width=state.width*state.cell_m, depth=state.height*state.cell_m;
+    const split=(state.zone_x??state.width/2)*state.cell_m-width/2;
     this.box(this.factory,0,-.6,0,width+1,1,depth+1,'#b6c7d1');
-    this.box(this.factory,-width/4,-.02,0,width/2,.08,depth,'#e2edf1');
-    this.box(this.factory,width/4,-.02,0,width/2,.08,depth,'#e5ede6');
+    this.box(this.factory,(split-width/2)/2,-.02,0,split+width/2,.08,depth,'#e2edf1');
+    this.box(this.factory,(split+width/2)/2,-.02,0,width/2-split,.08,depth,'#e5ede6');
     const points=[];
     for(let x=0;x<=state.width;x++) points.push(x*state.cell_m-width/2,.065,-depth/2,x*state.cell_m-width/2,.065,depth/2);
     for(let y=0;y<=state.height;y++) points.push(-width/2,.065,y*state.cell_m-depth/2,width/2,.065,y*state.cell_m-depth/2);
     const geometry=new THREE.BufferGeometry(); geometry.setAttribute('position',new THREE.Float32BufferAttribute(points,3));
     this.factory.add(new THREE.LineSegments(geometry,new THREE.LineBasicMaterial({color:'#91aab9',transparent:true,opacity:.3})));
-    const boundary=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,.12,-depth/2),new THREE.Vector3(0,.12,depth/2)]),new THREE.LineDashedMaterial({color:'#4f91b0',dashSize:2,gapSize:1})); boundary.computeLineDistances();this.factory.add(boundary);
-    this.factory.add(this.label('ZONE A',-27,1.2,-26),this.label('ZONE B',26,1.2,-26));
-    for(const y of [8,22]) {
-      this.box(this.factory,48,.04,(y+.5)*2-30,4,.16,5.5,'#6fa894');
-      this.factory.add(this.label('EXIT',48,1.1,(y+.5)*2-30,'#3c7c62',5));
-    }
+    const boundary=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(split,.12,-depth/2),new THREE.Vector3(split,.12,depth/2)]),new THREE.LineDashedMaterial({color:'#4f91b0',dashSize:2,gapSize:1})); boundary.computeLineDistances();this.factory.add(boundary);
+    this.factory.add(this.label('ZONE A',(split-width/2)/2,1.2,-depth/2+4),this.label('ZONE B',(split+width/2)/2,1.2,-depth/2+4));
     for(const sensor of state.sensors) {
-      const x=(sensor.x+.5)*2-50,z=(sensor.y+.5)*2-30;
+      const x=(sensor.x+.5)*state.cell_m-state.width*state.cell_m/2,z=(sensor.y+.5)*state.cell_m-state.height*state.cell_m/2;
       const base=new THREE.Mesh(new THREE.CylinderGeometry(.85,1.05,.3,12),this.material('#4d7c76'));base.position.set(x,.15,z);this.factory.add(base);
       const pole=new THREE.Mesh(new THREE.CylinderGeometry(.17,.17,2.5,8),this.material('#7b939e'));pole.position.set(x,1.4,z);this.factory.add(pole);
       this.box(this.factory,x,2.8,z,.9,.8,.7,'#2da58b');
@@ -115,7 +112,7 @@ export class FactoryScene {
     this.tiles=new THREE.InstancedMesh(new THREE.PlaneGeometry(state.cell_m*.98,state.cell_m*.98),new THREE.MeshBasicMaterial({transparent:true,opacity:.87,depthWrite:false}),state.width*state.height);
     this.tiles.instanceMatrix.setUsage(THREE.StaticDrawUsage);
     for(let y=0;y<state.height;y++)for(let x=0;x<state.width;x++){
-      this.matrix.position.set((x+.5)*2-width/2,.04,(y+.5)*2-depth/2);this.matrix.rotation.set(-Math.PI/2,0,0);this.matrix.scale.set(1,1,1);this.matrix.updateMatrix();this.tiles.setMatrixAt(y*state.width+x,this.matrix.matrix);
+      this.matrix.position.set((x+.5)*state.cell_m-width/2,.04,(y+.5)*state.cell_m-depth/2);this.matrix.rotation.set(-Math.PI/2,0,0);this.matrix.scale.set(1,1,1);this.matrix.updateMatrix();this.tiles.setMatrixAt(y*state.width+x,this.matrix.matrix);
     }
     this.tiles.instanceMatrix.needsUpdate=true;this.scene.add(this.tiles);
     this.flames=new THREE.InstancedMesh(new THREE.ConeGeometry(.85,3,7),new THREE.MeshBasicMaterial({color:'#f27732'}),state.width*state.height);this.flames.count=0;this.flames.frustumCulled=false;this.scene.add(this.flames);
@@ -127,8 +124,8 @@ export class FactoryScene {
     const key=JSON.stringify(state.walls);if(key===this.wallKey)return;this.wallKey=key;disposeTree(this.walls);
     for(const [x,y]of state.walls){
       const rack=x>=21&&x<=28&&[5,6,24,25].includes(y);
-      this.box(this.walls,(x+.5)*2-50,rack?1.2:2,(y+.5)*2-30,rack?1.75:1.9,rack?2.4:4,rack?1.75:1.9,rack?'#c69a60':'#7d94a7');
-      if(rack)this.box(this.walls,(x+.5)*2-50,2.55,(y+.5)*2-30,1.9,.14,1.9,'#596e80');
+      this.box(this.walls,(x+.5)*this.state.cell_m-this.state.width*this.state.cell_m/2,rack?1.2:2,(y+.5)*this.state.cell_m-this.state.height*this.state.cell_m/2,rack?1.75:1.9,rack?2.4:4,rack?1.75:1.9,rack?'#c69a60':'#7d94a7');
+      if(rack)this.box(this.walls,(x+.5)*this.state.cell_m-this.state.width*this.state.cell_m/2,2.55,(y+.5)*this.state.cell_m-this.state.height*this.state.cell_m/2,1.9,.14,1.9,'#596e80');
     }
   }
 
@@ -136,11 +133,12 @@ export class FactoryScene {
     const group=new THREE.Group(), color=AGENT_COLORS[index%AGENT_COLORS.length];
     this.box(group,0,.65,0,1.55,.8,1.9,color);this.box(group,0,1.25,-.05,.95,.55,1.1,'#dce8ed');
     this.box(group,0,1.55,.1,.7,.18,.65,color);
-    for(const x of [-.85,.85])for(const z of [-.6,.6]){const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,.25,10),this.material('#344856'));wheel.rotation.z=Math.PI/2;wheel.position.set(x,.35,z);group.add(wheel);}
+    this.box(group,0,.95,0,3.8,.12,.18,color);this.box(group,0,.95,0,.18,.12,3.8,color);
+    for(const x of [-1.8,1.8])for(const z of [-1.8,1.8]){const rotor=new THREE.Mesh(new THREE.TorusGeometry(.75,.07,5,20),this.material('#344856'));rotor.rotation.x=Math.PI/2;rotor.position.set(x,1,z);group.add(rotor);}
     const ring=new THREE.Mesh(new THREE.TorusGeometry(1.45,.09,5,28),new THREE.MeshBasicMaterial({color:'#ed6a39'}));ring.rotation.x=-Math.PI/2;ring.position.y=.1;group.add(ring);
     group.traverse(item=>{item.userData.agentId=agent.id;});
     const label=this.label(agent.id,0,3.5,0,color,8);group.add(label);
-    group.position.set((agent.x+.5)*2-50,0,(agent.y+.5)*2-30);
+    group.position.set((agent.x+.5)*this.state.cell_m-this.state.width*this.state.cell_m/2,0,(agent.y+.5)*this.state.cell_m-this.state.height*this.state.cell_m/2);
     this.robots.add(group);
     const goal=new THREE.Mesh(new THREE.TorusGeometry(1,.055,5,20),new THREE.MeshBasicMaterial({color}));goal.rotation.x=-Math.PI/2;goal.position.y=.16;this.scene.add(goal);
     const record={group,ring,label,goal,target:group.position.clone(),pathKey:null,line:null,index};this.robotMap.set(agent.id,record);return record;
@@ -152,8 +150,9 @@ export class FactoryScene {
     this.updateWalls(state);
     const observedCells=new Set((state.observed_hazard_cells||[]).map(([x,y])=>y*state.width+x));
     for(let i=0;i<state.heat.length;i++){
-      this.color.copy(i%state.width<state.width/2?this.baseA:this.baseB);
+      this.color.copy(i%state.width<(state.zone_x??state.width/2)?this.baseA:this.baseB);
       if(layer==='heat')this.color.lerp(this.fireColor,Math.min(1,Math.max(0,(state.heat[i]-28.6)/115)));
+      if(layer==='exploration')this.color.set((state.pheromone?.[i]||0)>0?'#56ad8b':'#b3bdc8');
       if(layer==='smoke')this.color.lerp(this.smokeColor,Math.min(1,state.smoke[i]));
       if(observedCells.has(i))this.color.lerp(new THREE.Color('#ce394e'),.7);
       this.tiles.setColorAt(i,this.color);
@@ -162,12 +161,12 @@ export class FactoryScene {
     this.smokeCells=state.smoke.map((v,i)=>({v,i})).filter(p=>p.v>.035).sort((a,b)=>b.v-a.v).slice(0,200);
     state.agents.forEach((agent,index)=>{
       const r=this.robotMap.get(agent.id)||this.makeRobot(agent,index);
-      r.target.set((agent.x+.5)*2-50,0,(agent.y+.5)*2-30);r.ring.visible=agent.id===selected;
-      r.goal.position.set((agent.goal[0]+.5)*2-50,.16,(agent.goal[1]+.5)*2-30);
+      r.target.set((agent.x+.5)*this.state.cell_m-this.state.width*this.state.cell_m/2,0,(agent.y+.5)*this.state.cell_m-this.state.height*this.state.cell_m/2);r.ring.visible=agent.id===selected;
+      r.goal.position.set((agent.goal[0]+.5)*state.cell_m-state.width*state.cell_m/2,.16,(agent.goal[1]+.5)*state.cell_m-state.height*state.cell_m/2);
       const pathKey=JSON.stringify(agent.path);
       if(r.pathKey!==pathKey){
         if(r.line){this.routes.remove(r.line);r.line.geometry.dispose();r.line.material.dispose();r.line=null;}
-        if(agent.path.length>1){const points=agent.path.map(([x,y])=>new THREE.Vector3((x+.5)*2-50,.2,(y+.5)*2-30));r.line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:AGENT_COLORS[index%4],transparent:true,opacity:.85}));this.routes.add(r.line);}
+        if(agent.path.length>1){const points=agent.path.map(([x,y])=>new THREE.Vector3((x+.5)*this.state.cell_m-this.state.width*this.state.cell_m/2,.2,(y+.5)*this.state.cell_m-this.state.height*this.state.cell_m/2));r.line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:AGENT_COLORS[index%AGENT_COLORS.length],transparent:true,opacity:.85}));this.routes.add(r.line);}
         r.pathKey=pathKey;
       }
     });
@@ -188,7 +187,7 @@ export class FactoryScene {
     const robot=this.raycaster.intersectObjects(this.robots.children,true).find(hit=>hit.object.userData.agentId);
     if(robot){this.onAgent?.(robot.object.userData.agentId);return;}
     const point=this.raycaster.ray.intersectPlane(this.ground,new THREE.Vector3());if(!point)return;
-    const x=Math.floor((point.x+50)/2),y=Math.floor((point.z+30)/2);
+    const x=Math.floor((point.x+this.state.width*this.state.cell_m/2)/this.state.cell_m),y=Math.floor((point.z+this.state.height*this.state.cell_m/2)/this.state.cell_m);
     if(x>=0&&x<this.state.width&&y>=0&&y<this.state.height)this.onCell?.(x,y);
   }
 
@@ -206,14 +205,14 @@ export class FactoryScene {
     this.flames.count=this.cores.count=this.state.fires.length;
     this.state.fires.forEach(([x,y],i)=>{
       const flicker=1+.13*Math.sin(time*5+i*2.1);
-      this.matrix.position.set((x+.5)*2-50,1.5*flicker,(y+.5)*2-30);this.matrix.scale.set(1,flicker,1);this.matrix.updateMatrix();this.flames.setMatrixAt(i,this.matrix.matrix);
+      this.matrix.position.set((x+.5)*this.state.cell_m-this.state.width*this.state.cell_m/2,1.5*flicker,(y+.5)*this.state.cell_m-this.state.height*this.state.cell_m/2);this.matrix.scale.set(1,flicker,1);this.matrix.updateMatrix();this.flames.setMatrixAt(i,this.matrix.matrix);
       this.matrix.position.y=.9*flicker;this.matrix.updateMatrix();this.cores.setMatrixAt(i,this.matrix.matrix);
     });
     this.flames.instanceMatrix.needsUpdate=this.cores.instanceMatrix.needsUpdate=true;
     this.smokeClouds.count=this.smokeCells.length;
     this.smokeCells.forEach(({v,i},j)=>{
       const x=i%this.state.width,y=Math.floor(i/this.state.width),phase=time*.45+i*.7;
-      this.matrix.position.set((x+.5)*2-50+Math.sin(phase)*.4,2+v*5+Math.cos(phase)*.5,(y+.5)*2-30);
+      this.matrix.position.set((x+.5)*this.state.cell_m-this.state.width*this.state.cell_m/2+Math.sin(phase)*.4,2+v*5+Math.cos(phase)*.5,(y+.5)*this.state.cell_m-this.state.height*this.state.cell_m/2);
       this.matrix.scale.setScalar(.65+v*1.8);this.matrix.updateMatrix();this.smokeClouds.setMatrixAt(j,this.matrix.matrix);
     });
     this.smokeClouds.instanceMatrix.needsUpdate=true;

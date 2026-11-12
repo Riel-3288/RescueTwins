@@ -8,4 +8,4 @@ COPY mec-app/deploy/config.team.example.json mec-app/deploy/config.example.json 
 COPY mec-app/deploy/dashboard/app.js mec-app/deploy/dashboard/index.html mec-app/deploy/dashboard/style.css mec-app/deploy/dashboard/favicon.svg mec-app/deploy/dashboard/THIRD-PARTY-LICENSES.txt ./dashboard/
 COPY simulation/rescue_sim.py simulation/node01_sample.jsonl simulation/sample_data.json simulation/sim_sensor_data.jsonl simulation/sim_agent_log.jsonl /workspace/simulation/
 EXPOSE 8765
-CMD ["python", "-m", "rescuetwin.demo", "--config", "config.team.example.json", "--recorded-only", "--host", "0.0.0.0"]
+CMD ["python", "-m", "rescuetwin.demo", "--config", "config.team.example.json", "--live-swarm", "--host", "0.0.0.0"]

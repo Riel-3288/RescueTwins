@@ -41,7 +41,8 @@ def test_routing_avoids_fire_obstacles_and_detects_unreachable_target():
 
 def test_zone_confirmation_pause_reset_and_contract():
     model = Factory()
-    model.agents = [dict(model.agents[0], x=23, y=14, goal=[30, 14], _fence=None)]
+    model.agents = [dict(model.agents[0], x=model.zone_x-3, y=14, goal=[model.zone_x+5, 14], _fence=None)]
+    model.command({"action":"goal","agent_id":model.agents[0]["id"],"x":model.zone_x+5,"y":14})
     model.command({"action": "resume"})
     events = []
     for _ in range(24):

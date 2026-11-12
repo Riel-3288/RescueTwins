@@ -49,7 +49,7 @@ function setMapMode(mode){
   mapMode=mode==='2d'?'2d':'3d';
   $('factory3d').hidden=mapMode!=='3d';$('factoryMap').hidden=mapMode!=='2d';
   $('sceneBadge').textContent=mapMode==='3d'?'3D DIGITAL TWIN':'2D FACTORY GRID';
-  $('sceneGuide').textContent=mapMode==='3d'?'Left drag: rotate | Middle drag: pan | Wheel: zoom':'Click a cell to edit · Each cell is 2 × 2 m';
+  $('sceneGuide').textContent=mapMode==='3d'?'Left drag: rotate | Middle drag: pan | Wheel: zoom':`Click a cell to edit · Each cell is ${state?.cell_m||2} m`;
   $('resetCamera').hidden=mapMode!=='3d';$('sceneError').hidden=mapMode!=='3d'||!sceneUnavailable;
   for(const button of document.querySelectorAll('[data-mode]')){button.classList.toggle('selected',button.dataset.mode===mapMode);button.setAttribute('aria-pressed',button.dataset.mode===mapMode?'true':'false');}
   if(mapMode==='3d')createScene();
@@ -82,17 +82,24 @@ function drawTrend(){
 }
 
 function renderOverview(){
+  if($("factoryDimensions"))$("factoryDimensions").textContent=`${state.width*state.cell_m} × ${state.height*state.cell_m} m · ${state.cell_m} m cells · A/B boundary x = ${state.zone_x*state.cell_m} m`;
+  const swarm=state.swarm;
+  if(swarm){$('swarmLiveSummary').textContent=`${swarm.drone_count} drones | ${state.width} x ${state.height} cells | Coverage ${swarm.coverage_percent}% | Shared ${swarm.shared_cells} cells | Round ${swarm.tick} | ${swarm.transport==='http'?'HTTP Fusion':'Embedded Fusion'}`;
+    $('swarmLiveError').textContent=swarm.error||'Each drone observes locally; exploration decisions use the merged Fusion map. Manual goals are explicit overrides.';
+  }
+  $('factoryMap').style.aspectRatio=`${state.width}/${state.height}`;
   renderRescue();
   $('fireCount').textContent=state.metrics.fire_cells;$('hazardCount').textContent=`Hazard cells: ${state.metrics.hazard_cells}`;$('peakTemp').textContent=state.metrics.peak_temperature.toFixed(1);
-  $('mqttCount').textContent=state.mqtt.received.toLocaleString();$('mqttSummary').textContent=serviceOnline?`PUBACK ${state.mqtt.puback} · Rejected ${state.mqtt.rejected}`:'Page updates have stopped';
+  $('mqttStatTitle').textContent=state.live_mode?'Sensor Records Loaded':'MQTT Messages Received';
+  $('mqttCount').textContent=state.mqtt.received.toLocaleString();$('mqttSummary').textContent=state.live_mode?'Recorded input; original timestamps retained':serviceOnline?`PUBACK ${state.mqtt.puback} · Rejected ${state.mqtt.rejected}`:'Page updates have stopped';
   $('storedCount').textContent=state.cse.enabled?(state.cse.counts.delivered||0).toLocaleString():'—';
   $('cseSummary').textContent=state.cse.enabled?`Pending ${state.cse.counts.pending||0} · Quarantined ${state.cse.counts.quarantined||0}`:'CSE bridge not enabled';
-  badge('brokerBadge',!serviceOnline?'Unknown':state.mqtt.connected?'Connected':'Disconnected',serviceOnline&&state.mqtt.connected);
+  badge('brokerBadge',!serviceOnline?'Unknown':state.live_mode?'Not used':state.mqtt.connected?'Connected':'Disconnected',serviceOnline&&state.mqtt.connected);
   badge('bridgeBadge',!serviceOnline?'Unknown':state.cse.enabled?'Enabled':'Disabled',serviceOnline&&state.cse.enabled);
   $('brokerAddress').textContent=`${state.mqtt.host}:${state.mqtt.port}`;
   $('deliveryDetail').textContent=state.cse.enabled?`Cumulative stored: ${(state.cse.counts.delivered||0).toLocaleString()}. Two zone workers replay telemetry; rescue events receive priority. Simulator sends changes and heartbeats.`:'MQTT is available independently. Use --with-cse to verify storage.';
   const seconds=Math.floor(state.sim_seconds);$('simTime').textContent=`${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')} / ${state.speed}×`;
-  $('runState').textContent=state.paused?'● Paused · Telemetry live':'● Simulation running';$('toggle').textContent=state.paused?'▶ Resume':'Ⅱ Pause';$('speed').value=state.speed;
+  $('runState').textContent=state.paused?'● Paused':'● Live swarm exploring';$('toggle').textContent=state.paused?'▶ Resume':'Ⅱ Pause';$('speed').value=state.speed;
   $('crossings').textContent=`${state.metrics.boundary_events} zone crossings`;
   $('events').innerHTML=state.events.slice(0,15).map(e=>`<div class="event"><i class="event-bullet"></i><span>${esc(eventMessage(e))}</span><time>${Math.floor(e.sim_seconds)}s</time></div>`).join('');
   renderMap();drawTrend();
@@ -128,7 +135,7 @@ function renderTelemetry(){
   if(key!==devicesKey){const previous=$('filterDevice').value;$('filterDevice').innerHTML='<option value="">All devices</option>'+devices.map(d=>`<option>${esc(d)}</option>`).join('');$('filterDevice').value=devices.includes(previous)?previous:'';devicesKey=key;}
   $('deviceCount').textContent=devices.length;$('readingCount').textContent=readings.length;
   $('unhealthyCount').textContent=readings.filter(r=>r.quality!=='valid'||freshness(r,now)!=='fresh').length;
-  $('sensorBroker').textContent=!serviceOnline?'Unknown':state.mqtt.connected?'Connected':'Offline';
+  $('sensorBroker').textContent=!serviceOnline?'Unknown':state.live_mode?'Local file / model':state.mqtt.connected?'Connected':'Offline';
   $('sensorBroker').classList.add('status-word');$('lastReceived').textContent=`Last received: ${timeText(state.mqtt.last_received)}`;
   filteredReadings=readings.filter(r=>matchesReading(r,filters,now)).sort((a,b)=>(a.device_id+a.source+a.sensor_type).localeCompare(b.device_id+b.source+b.sensor_type));
   $('filterCount').textContent=`${filteredReadings.length} of ${readings.length} latest readings`;
@@ -159,7 +166,7 @@ function renderAgents(){
   const agent=agents.find(a=>a.id===selectedAgent)||agents[0];if(!agent)return;
   selectedAgent=agent.id;const m=agentMetrics(agent,state),last=agent.path.at(-1),validPath=last&&last[0]===agent.goal[0]&&last[1]===agent.goal[1];
   $('agentDetailTitle').textContent=`${agent.id} · Route Detail`;$('goalAgentLabel').textContent=`Selected agent: ${agent.id}${state.paused?' · Simulation paused':''}`;
-  const metrics=[['Confirmed Zone',agent.zone],['Status',`${statusLabels[agent.status]}${state.paused?' · Paused':''}`],['Remaining Route',validPath?`${m.remaining} m`:'Not planned yet'],['Local Temperature',`${m.temperature.toFixed(1)} °C`],['Local Smoke Index',`${(m.smoke*100).toFixed(0)}%`],['Cell Exposure',m.exposed?'Hazardous':'Below demo thresholds']];
+  const metrics=[['Controller',agent.mode==='swarm'?'Swarm exploration':'Manual goal'],['Confirmed Zone',agent.zone],['Status',`${statusLabels[agent.status]}${state.paused?' · Paused':''}`],['Remaining Route',validPath?`${m.remaining} m`:'Not planned yet'],['Local Temperature',`${m.temperature.toFixed(1)} °C`],['Local Smoke Index',`${(m.smoke*100).toFixed(0)}%`],['Cell Exposure',m.exposed?'Hazardous':'Below demo thresholds']];
   $('agentDetailMetrics').innerHTML=metrics.map(([name,value])=>`<div><small>${esc(name)}</small><strong>${esc(value)}</strong></div>`).join('');
   if(!goalDirty){$('goalX').value=m.goalX;$('goalY').value=m.goalY;}
   const events=state.events.filter(e=>e.agent_id===agent.id||(e.kind==='goal'&&e.message?.includes(agent.id))).slice(0,12);
@@ -167,7 +174,12 @@ function renderAgents(){
   drawFactory2d($('agentMap'),state,{selected:selectedAgent});
 }
 
-function render(){if(!state)return;if(page==='overview')renderOverview();else if(page==='telemetry')renderTelemetry();else if(page==='recorded')renderRecorded();else renderAgents();}
+function render(){if(!state)return;
+  const ids=state.agents.map(a=>a.id), selector=$('agentSelect');
+  if([...selector.options].map(o=>o.value).join(',')!==ids.join(',')){selector.replaceChildren(...ids.map(id=>new Option(id,id)));if(!ids.includes(selectedAgent))selectedAgent=ids[0];selector.value=selectedAgent;}
+  $('goalX').max=state.width*state.cell_m-.01;$('goalY').max=state.height*state.cell_m-.01;
+  if(state.recorded){$('recordedGoalX').max=state.recorded.grid.width-1;$('recordedGoalY').max=state.recorded.grid.height-1;}
+if(page==='overview')renderOverview();else if(page==='telemetry')renderTelemetry();else if(page==='recorded')renderRecorded();else renderAgents();}
 
 async function poll(){
   if(requestActive)return;requestActive=true;
@@ -175,6 +187,7 @@ async function poll(){
     const response=await fetch('/api/state',{signal:AbortSignal.timeout(5000)});if(!response.ok)throw new Error('API unavailable');
     const next=await response.json();
     if(next.mqtt.received<lastReceivedCount){buffer.clear();selectedPayload=null;}
+    if(scene&&state&&[state.width,state.height,state.cell_m,state.zone_x,state.agents.length].join(',')!==[next.width,next.height,next.cell_m,next.zone_x,next.agents.length].join(',')){scene.dispose();scene=null;}
     lastReceivedCount=next.mqtt.received;state=next;buffer.ingest(state.messages);serviceOnline=true;badge('apiStatus','● Service online',true);render();
   }catch{serviceOnline=false;badge('apiStatus','Service offline',false);render();}finally{requestActive=false;}
 }
@@ -275,4 +288,5 @@ $('recordedSimulate').addEventListener('click',()=>{const p=state?.recorded?.pla
 
 $('recordedRobotTasks').addEventListener('click',e=>{const b=e.target.closest('[data-robot-suggestion]');if(b)command('robot_simulate',{suggestion_id:b.dataset.robotSuggestion});});
 $('mecGridRefresh').addEventListener('click',()=>command('mec_snapshot'));
+$('resumeAllSwarm').addEventListener('click',()=>command('resume_swarm'));
 routePage();setInterval(poll,700);poll();

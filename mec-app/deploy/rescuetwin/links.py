@@ -4,11 +4,12 @@ import math
 import uuid
 
 from .core import digest
+from .layout import LEGACY_WIDTH,LEGACY_HEIGHT
 from .mec import Mec
 from .recordings import route
 
 
-def geo_to_grid(latitude, longitude, bounds, width=50, height=30):
+def geo_to_grid(latitude, longitude, bounds, width=LEGACY_WIDTH, height=LEGACY_HEIGHT):
     vals=[latitude,longitude,*[bounds[k] for k in ('south','north','west','east')]]
     if any(type(v) not in (float,int) or not math.isfinite(v) for v in vals):
         raise ValueError('Coordinates and bounds must be finite numbers')
@@ -34,7 +35,7 @@ def mapped_locations(config, payload=None):
             user=by_address[address];info=user['locationInfo']
             if info.get('shape')!=2 or len(info['latitude'])!=1 or len(info['longitude'])!=1:
                 raise ValueError('Expected an unambiguous single-point location')
-            record.update(grid=geo_to_grid(info['latitude'][0],info['longitude'][0],settings['bounds']),
+            record.update(grid=geo_to_grid(info['latitude'][0],info['longitude'][0],settings['bounds'],settings.get('grid_width',LEGACY_WIDTH),settings.get('grid_height',LEGACY_HEIGHT)),
                           timeStamp=user.get('timeStamp'),sandbox_zone=user.get('zoneId'),ok=True)
         except (ValueError,KeyError,TypeError,IndexError) as exc:
             record.update(ok=False,error=str(exc))

@@ -88,7 +88,7 @@
         "y_m": 43
       },
       "node-03": {
-        "x_m": 77,
+        "x_m": 125,
         "y_m": 29
       }
     },
@@ -109,5 +109,14 @@
         "unit": "mV"
       }
     }
+  },
+  "live_factory": {
+    "width": 80,
+    "height": 40,
+    "zone_x": 40,
+    "cell_m": 2,
+    "drone_count": 8,
+    "radius": 2,
+    "swarm_url": ""
   }
 }
