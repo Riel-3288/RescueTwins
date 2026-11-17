@@ -40,6 +40,18 @@ class DataTests(unittest.TestCase):
         for change in ({'unit': 'Pa'}, {'device_id': 'node-02'}, {'sensor_type': 'humidity'}, {'value': True}):
             self.assertEqual(app.normalize('temperature', cin(**change))['state'], 'invalid')
 
+    def test_raw_gas_preserves_mv_and_legacy_adc(self):
+        for name in ('smoke_raw', 'co_raw'):
+            for unit in ('mV', 'adc', 'ppm'):
+                with self.subTest(sensor=name, unit=unit):
+                    result = app.normalize(name, cin(name, 348, unit=unit))
+                    if unit == 'ppm':
+                        self.assertEqual(result['state'], 'invalid')
+                        self.assertIsNone(result['value'])
+                    else:
+                        self.assertEqual((result['state'], result['value'], result['unit']),
+                                         ('valid', 348, unit))
+
     def test_stale_even_if_device_clock_is_in_future(self):
         record = cin(observed_at='2099-01-01T00:00:00Z')
         record['ct'] = (datetime.now(timezone.utc) - timedelta(minutes=5)).strftime('%Y%m%dT%H%M%S')

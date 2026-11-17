@@ -19,6 +19,7 @@ AE_NAME, AE_ORIGIN = 'rescuetwin-web', 'CRescueTwinWeb'
 SENSORS = {'temperature': ('Temperature', 'degC'), 'humidity': ('Humidity', 'percent'),
            'pressure': ('Pressure', 'hPa'), 'presence': ('Presence', 'boolean'),
            'smoke_raw': ('MQ-2 raw', 'adc'), 'co_raw': ('MQ-7 raw', 'adc')}
+RAW_GAS_SENSORS = ('smoke_raw', 'co_raw')
 
 
 def request(method, url, origin, body=None, ty=None):
@@ -117,20 +118,23 @@ def normalize(name, cin):
     if not isinstance(payload, dict):
         raise ValueError('con must contain a JSON object')
     value = payload.get('value')
+    unit = payload.get('unit')
+    default_unit = SENSORS[name][1]
+    allowed_units = ('mV', 'adc') if name in RAW_GAS_SENSORS else (default_unit,)
     valid_value = (isinstance(value, bool) if name == 'presence' else
                    isinstance(value, (float, int)) and not isinstance(value, bool) and math.isfinite(value))
-    if name in ('smoke_raw', 'co_raw'):
+    if name in RAW_GAS_SENSORS:
         valid_value = valid_value and isinstance(value, int) and value >= 0
     if name == 'humidity':
         valid_value = valid_value and 0 <= value <= 100
     valid = (valid_value and payload.get('quality') == 'valid'
              and payload.get('device_id') == 'node-01' and payload.get('zone_id') == 'A'
-             and payload.get('sensor_type') == name and payload.get('unit') == SENSORS[name][1])
+             and payload.get('sensor_type') == name and unit in allowed_units)
     observed = parse_time(payload.get('observed_at'))
     received = parse_time(cin.get('ct'))
     age = max(0, (datetime.now(timezone.utc) - received).total_seconds()) if received else None
     return {'sensor': name, 'state': 'valid' if valid else 'invalid', 'value': value if valid else None,
-            'unit': SENSORS[name][1], 'source': payload.get('source', 'unknown'),
+            'unit': unit if unit in allowed_units else default_unit, 'source': payload.get('source', 'unknown'),
             'observed_at': observed.isoformat() if observed else None,
             'received_at': received.isoformat() if received else None, 'age_seconds': age,
             'stale': age is None or age > 60, 'resource_id': cin.get('ri'), 'payload': payload}
