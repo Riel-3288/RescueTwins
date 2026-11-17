@@ -1,0 +1,18 @@
+{
+  "result": "passed",
+  "checked_at": "2026-11-09T05:55:38.593009+00:00",
+  "cse_id": "/id-mn-zone-b",
+  "cse_name": "mn-zone-b",
+  "http_port": 8002,
+  "direct_base": "http://127.0.0.1:8002/~/id-mn-zone-b/mn-zone-b",
+  "via_in_base": "http://127.0.0.1:7599/~/id-mn-zone-b/mn-zone-b",
+  "read_originator": "/id-mn-zone-b/CZoneBConnectionTest",
+  "test_resource": "/zone-b-connection-test/_connection_test",
+  "event_id": "48032daf53e343468f9cf8838065ecfb",
+  "checks": [
+    "MN-B identity",
+    "isolated ACP-protected test write/read",
+    "cross-CSE exact record retrieval"
+  ],
+  "scope": "Same-computer Zone B platform instance; no physical sensors, handover or MQTT verified."
+}

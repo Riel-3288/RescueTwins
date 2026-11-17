@@ -1,0 +1,18 @@
+{
+  "result": "passed",
+  "checked_at": "2026-11-09T05:55:38.714465+00:00",
+  "cse_id": "/id-mn-zone-b",
+  "broker_port": 1883,
+  "tls": false,
+  "request_topic": "/oneM2M/req/CZoneBConnectionTest/id-mn-zone-b/json",
+  "response_topic": "/oneM2M/resp/CZoneBConnectionTest/id-mn-zone-b/json",
+  "checks": [
+    "test account login",
+    "MQTT CIN create 2001",
+    "MQTT retrieve 2000",
+    "same record through Mobius HTTP",
+    "incorrect password rejected"
+  ],
+  "event_id": "6d7c9cc301e8455693a8f4d1c68dc0e6",
+  "scope": "Zone B test container only; no physical device MQTT verified."
+}

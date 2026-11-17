@@ -25,3 +25,4 @@ secrets.cpp
 Thumbs.db
 .DS_Store
 acme-zone-a/
+.mqtt-local/

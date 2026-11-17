@@ -1,0 +1,47 @@
+{
+  "run_id": "96e281bf72544f16b3660cdc50185c09",
+  "started_at": "2026-11-07T06:39:55.995273+00:00",
+  "base_url": "http://127.0.0.1:8001/~/id-mn-zone-a/mn-zone-a",
+  "scope": "isolated platform test resources; no real robot actions",
+  "checks": [
+    {
+      "check": "Four isolated test AEs registered or reused",
+      "result": "passed"
+    },
+    {
+      "check": "Separate observation, bid, command and shared-map policies provisioned",
+      "result": "passed"
+    },
+    {
+      "check": "Agents upload observations/bids; agents and viewer read the shared map",
+      "result": "passed"
+    },
+    {
+      "check": "Six negative permission checks rejected with HTTP 403",
+      "result": "passed"
+    },
+    {
+      "check": "Command-container group contains both test agents",
+      "result": "passed"
+    },
+    {
+      "check": "Two temporary subscriptions created and callback verification received",
+      "result": "passed"
+    },
+    {
+      "check": "One recall fan-out reached both agents and produced both subscription notifications",
+      "result": "passed"
+    },
+    {
+      "check": "One regroup fan-out reached both agents and produced both subscription notifications",
+      "result": "passed"
+    },
+    {
+      "check": "Viewer cannot issue group commands",
+      "result": "passed"
+    }
+  ],
+  "result": "passed",
+  "finished_at": "2026-11-07T06:39:57.067852+00:00",
+  "temporary_subscription_cleanup_errors": []
+}
