@@ -1,0 +1,20 @@
+{
+  "agent_id": "agent-01",
+  "buffered_reports": 0,
+  "from_zone": "A",
+  "interruption_ms": 749.3,
+  "lost_reports": 0,
+  "mode": "application-layer-reregistration",
+  "ok": true,
+  "procedure_ms": 549.2,
+  "started_at": "2026-11-19T14:57:18.074385Z",
+  "steps": [
+    "target_ae_registered",
+    "target_acp_created",
+    "target_subscription_created",
+    "last_state_copied",
+    "group_and_subscription_switched"
+  ],
+  "to_zone": "B",
+  "trigger": "factory_geofence"
+}

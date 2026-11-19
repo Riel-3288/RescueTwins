@@ -1,0 +1,114 @@
+{
+  "captured_at": "2026-11-19T14:59:56.818847+00:00",
+  "zones": {
+    "A": {
+      "url": "http://127.0.0.1:8001/~/id-mn-zone-a/mn-zone-a/rescue-mec/handover",
+      "response": {
+        "m2m:cnt": {
+          "mni": 100,
+          "acpi": [
+            "acpuc55YsfAwJ"
+          ],
+          "lbl": [
+            "RescueTwin",
+            "handover",
+            "zone-A"
+          ],
+          "rn": "handover",
+          "cni": 2,
+          "cbs": 797,
+          "st": 2,
+          "pi": "CRescueMec",
+          "ri": "cntfBIZ2oecpM",
+          "ty": 3,
+          "ct": "20261119T093509,137121",
+          "lt": "20261119T093509,137121",
+          "et": "20311118T093508,447622",
+          "m2m:cin": [
+            {
+              "rn": "cin-d47b7997e15f276d66f26e474e3ab767de34d043",
+              "cnf": "application/json:0",
+              "con": "{\"agent_id\":\"agent-01\",\"buffered_reports\":0,\"from_zone\":\"A\",\"interruption_ms\":1046.1,\"lost_reports\":0,\"mode\":\"application-layer-reregistration\",\"ok\":true,\"procedure_ms\":845.9,\"started_at\":\"2026-11-19T14:43:36.167691Z\",\"steps\":[\"target_ae_registered\",\"target_acp_created\",\"target_subscription_created\",\"last_state_copied\",\"group_and_subscription_switched\"],\"to_zone\":\"B\",\"trigger\":\"factory_geofence\"}",
+              "cs": 399,
+              "pi": "cntfBIZ2oecpM",
+              "ri": "cinpBpDW9FQyJ",
+              "ty": 4,
+              "ct": "20261119T144334,987298",
+              "lt": "20261119T144334,987298",
+              "et": "20311118T093508,447622",
+              "st": 1
+            },
+            {
+              "rn": "cin-50cecd16bef30dbfdb1e26b27f101829c67333ed",
+              "cnf": "application/json:0",
+              "con": "{\"agent_id\":\"agent-01\",\"buffered_reports\":0,\"from_zone\":\"A\",\"interruption_ms\":749.3,\"lost_reports\":0,\"mode\":\"application-layer-reregistration\",\"ok\":true,\"procedure_ms\":549.2,\"started_at\":\"2026-11-19T14:57:18.074385Z\",\"steps\":[\"target_ae_registered\",\"target_acp_created\",\"target_subscription_created\",\"last_state_copied\",\"group_and_subscription_switched\"],\"to_zone\":\"B\",\"trigger\":\"factory_geofence\"}",
+              "cs": 398,
+              "pi": "cntfBIZ2oecpM",
+              "ri": "cinOfa6ba7AnR",
+              "ty": 4,
+              "ct": "20261119T145716,589086",
+              "lt": "20261119T145716,589086",
+              "et": "20311118T093508,447622",
+              "st": 2
+            }
+          ]
+        }
+      }
+    },
+    "B": {
+      "url": "http://127.0.0.1:8002/~/id-mn-zone-b/mn-zone-b/rescue-mec/handover",
+      "response": {
+        "m2m:cnt": {
+          "mni": 100,
+          "acpi": [
+            "acpHrgfxEJorf"
+          ],
+          "lbl": [
+            "RescueTwin",
+            "handover",
+            "zone-B"
+          ],
+          "rn": "handover",
+          "cni": 2,
+          "cbs": 797,
+          "st": 2,
+          "pi": "CRescueMec",
+          "ri": "cntOU0bN1yZos",
+          "ty": 3,
+          "ct": "20261119T093509,712780",
+          "lt": "20261119T093509,712780",
+          "et": "20311118T093509,339676",
+          "m2m:cin": [
+            {
+              "rn": "cin-d47b7997e15f276d66f26e474e3ab767de34d043",
+              "cnf": "application/json:0",
+              "con": "{\"agent_id\":\"agent-01\",\"buffered_reports\":0,\"from_zone\":\"A\",\"interruption_ms\":1046.1,\"lost_reports\":0,\"mode\":\"application-layer-reregistration\",\"ok\":true,\"procedure_ms\":845.9,\"started_at\":\"2026-11-19T14:43:36.167691Z\",\"steps\":[\"target_ae_registered\",\"target_acp_created\",\"target_subscription_created\",\"last_state_copied\",\"group_and_subscription_switched\"],\"to_zone\":\"B\",\"trigger\":\"factory_geofence\"}",
+              "cs": 399,
+              "pi": "cntOU0bN1yZos",
+              "ri": "cinFS0Y6h3dIS",
+              "ty": 4,
+              "ct": "20261119T144335,038761",
+              "lt": "20261119T144335,038761",
+              "et": "20311118T093509,339676",
+              "st": 1
+            },
+            {
+              "rn": "cin-50cecd16bef30dbfdb1e26b27f101829c67333ed",
+              "cnf": "application/json:0",
+              "con": "{\"agent_id\":\"agent-01\",\"buffered_reports\":0,\"from_zone\":\"A\",\"interruption_ms\":749.3,\"lost_reports\":0,\"mode\":\"application-layer-reregistration\",\"ok\":true,\"procedure_ms\":549.2,\"started_at\":\"2026-11-19T14:57:18.074385Z\",\"steps\":[\"target_ae_registered\",\"target_acp_created\",\"target_subscription_created\",\"last_state_copied\",\"group_and_subscription_switched\"],\"to_zone\":\"B\",\"trigger\":\"factory_geofence\"}",
+              "cs": 398,
+              "pi": "cntOU0bN1yZos",
+              "ri": "cinxtrbsoEj3a",
+              "ty": 4,
+              "ct": "20261119T145716,642163",
+              "lt": "20261119T145716,642163",
+              "et": "20311118T093509,339676",
+              "st": 2
+            }
+          ]
+        }
+      }
+    }
+  },
+  "unique_event_count": 2
+}
