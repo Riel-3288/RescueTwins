@@ -1,53 +1,53 @@
-> 实时 swarm 演示：`start-demo.ps1 -Mode LiveSwarm`，默认80×40、8架、A/B。见 [运行说明](README_RUN.md)。
+> Live swarm demo: `start-demo.ps1 -Mode LiveSwarm`, with an 80x40 grid, eight drones and zones A/B by default. See the [run guide](README_RUN.md).
 
-> 2026-11-11 当前版本已改为 50×30、A/B 两区、drone-A/B，并增加独立 MEC swarm-fusion 服务。当前启动与部署以 [README_RUN.md](README_RUN.md) 为准；下文早期三分区说明保留为历史记录。
+> On 2026-11-11, the version changed to a 50x30 map, zones A/B and drone-A/B, with a separate MEC swarm-fusion service. Follow [README_RUN.md](README_RUN.md) for current startup and deployment instructions. The earlier three-zone instructions below are retained as historical notes.
 
-> 简单启动方法：请先看 [Simulation / Dashboard 快速启动](README_RUN.md)。
+> For a simple startup workflow, see the [Simulation / Dashboard quick start](README_RUN.md).
 
-> 录制数据输入与验收操作见 [部署指南](docs/deployment-guide.md)。默认 sensor 数据来自根目录 `simulation/sample_data.json`，保留原时间与 source；不兼容记录单独报告。
+> See the [deployment guide](docs/deployment-guide.md) for recorded inputs and acceptance checks. Sensor input defaults to the repository's `simulation/sample_data.json`, preserving the original timestamps and source. Incompatible records are reported separately.
 
 # RescueTwins MQTT / MEC Integration
 
-本模块包含团队 oneM2M MQTT 文件上传、MEC 接入、drone 记录回放和路线预览，以及隔离的本地工厂演示。
-传感器消息使用团队约定的八个字段。
+This module provides team oneM2M MQTT file uploads, MEC integration, drone-recording replay and route previews, and an isolated local factory demo.
+Sensor messages use the eight fields agreed by the team.
 
-Dashboard 包含 Recorded Mission、Factory Overview、Sensors & Messages 和 Agent Status 四个页面，支持
-传感器筛选、JSON 检查、CSV 导出、agent 路线与目标编辑。3D 地图使用同一套二维模拟数据。
+The dashboard has four pages: Recorded Mission, Factory Overview, Sensors & Messages, and Agent Status. They support
+sensor filters, JSON inspection, CSV export, and agent route and goal editing. The 3D map visualizes the same 2D simulation data.
 
-## 本地启动（不需要 Docker）
+## Local startup without Docker
 
-在本目录的 PowerShell 中运行：
+Run the following in PowerShell from this directory:
 
 ~~~powershell
 powershell -ExecutionPolicy Bypass -File .\start-demo.ps1
 ~~~
 
-打开 http://127.0.0.1:8765/#recorded。默认只启动文件回放网页，不启动 MQTT Broker、bridge 或 CSE。
+Open http://127.0.0.1:8765/#recorded. The default starts the file-replay web page only, with the MQTT broker, bridge and CSE left off.
 
-启动参数 `-Mode Recorded|Swarm|SwarmHeadless|LocalDemo|LocalCse` 对应文件回放、Sariel 动画、无动画基准、旧本地演示、旧本地 CSE 演示。详细命令、依赖、API 请求/响应和未完成项见 [组员交接说明](docs/team-collaboration.md#2026-11-10-selina-交接)。
+The `-Mode Recorded|Swarm|SwarmHeadless|LocalDemo|LocalCse` options select file replay, Sariel's animation, the headless benchmark, the legacy local demo, and the legacy local CSE demo. Commands, dependencies, API requests/responses and pending work are listed in the [team handoff](docs/team-collaboration.md#2026-11-10-selina-handoff).
 
-团队链路直接使用 oneM2M MQTT binding；普通 rescuetwin topic 与 bridge 仅保留用于旧隔离演示。smoke_raw/co_raw 已统一为 mV，原始数值不换算。
+The team integration uses oneM2M MQTT binding directly. Plain rescuetwin topics and the bridge remain available for the legacy isolated demo. smoke_raw/co_raw use mV throughout, preserving their raw values.
 
-## 指南
+## Guides
 
-- [Simulator + MQTTX：启动、地图、测试消息和排错](docs/simulator-mqttx-guide.md)
-- [部署：MQTT 数据约定、CSE、MEC/Sandbox、TLS、Kubernetes 与验收](docs/deployment-guide.md)
-- [团队协作：分支、拉取与接口交接](docs/team-collaboration.md)
+- [Simulator + MQTTX: startup, maps, test messages and troubleshooting](docs/simulator-mqttx-guide.md)
+- [Deployment: MQTT contract, CSE, MEC/Sandbox, TLS, Kubernetes and acceptance](docs/deployment-guide.md)
+- [Team collaboration: branches, updates and interface handoff](docs/team-collaboration.md)
 
-## 测试
+## Tests
 
 ~~~powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements-test.txt
 .\.venv\Scripts\python.exe -m pytest -q
 ~~~
 
-本地测试使用真实 MQTT/ACME，MEC 服务使用接口测试样例。Shared 环境、真实 ESP32、
-ACME–Mobius 与完整 MEC021 仍需实际联调。
+Local tests use real MQTT/ACME instances and MEC API fixtures. The shared environment, physical ESP32 integration,
+ACME-Mobius interoperability and full MEC021 workflow still require integration testing.
 
-## 修改网页
+## Editing the dashboard
 
-运行演示无需 Node.js；仓库包含构建好的 `dashboard/app.js`。修改 `dashboard/src/`
-后，在 `dashboard/` 中运行以下命令并刷新浏览器；不要直接编辑生成的 `app.js`：
+Running the demo requires no Node.js installation because the repository includes the built `dashboard/app.js`. After editing `dashboard/src/`,
+run these commands in `dashboard/` and refresh the browser. Edit the source files rather than the generated `app.js`:
 
 ~~~powershell
 npm ci
@@ -55,21 +55,21 @@ npm test
 npm run build
 ~~~
 
-Three.js 已打包到本地文件，运行时无需 CDN。第三方许可见 `dashboard/THIRD-PARTY-LICENSES.txt`。
+Three.js is bundled locally, with no runtime CDN dependency. Third-party licenses are in `dashboard/THIRD-PARTY-LICENSES.txt`.
 
-## 目录
+## Directory layout
 
 ~~~text
-rescuetwin/          MQTT Bridge、oneM2M client、MEC-IPE、模拟器与 HTTP 服务
-dashboard/          英文网页界面
-broker/             Mosquitto 配置和 ACL
-k8s/                MEC 主机部署模板
-scenario/           工厂场景与地图
-tools/              CSE、证书、场景及部署工具
-tests/              MQTT、CSE、TLS 与模拟器测试
-docs/               三份操作指南
-start-demo.ps1      Windows 本地启动入口
-compose.local.yaml  Docker Compose 开发环境
+rescuetwin/          MQTT bridge, oneM2M client, MEC-IPE, simulator and HTTP services
+dashboard/          English-language web interface
+broker/             Mosquitto configuration and ACLs
+k8s/                MEC host deployment templates
+scenario/           Factory scenario and map
+tools/              CSE, certificate, scenario and deployment tools
+tests/              MQTT, CSE, TLS and simulator tests
+docs/               Three operating guides
+start-demo.ps1      Windows local startup entry point
+compose.local.yaml  Docker Compose development environment
 ~~~
 
 
@@ -100,4 +100,4 @@ Use [the recorded mission workflow](docs/simulator-mqttx-guide.md#recorded-json-
 
 ## Swarm cooperative control
 
-Swarm exploration bidding and collision reservations are implemented in `rescuetwin/swarm_logic.py`, served by `rescuetwin/swarm_service.py` and consumed through `tools/run_swarm.py`. The existing Swarm launcher uses this adapter; the team-owned simulator remains unchanged. See [run guide](README_RUN.md#swarm-logic-实现位置与范围).
+Swarm exploration bidding and collision reservations are implemented in `rescuetwin/swarm_logic.py`, served by `rescuetwin/swarm_service.py` and consumed through `tools/run_swarm.py`. The existing Swarm launcher uses this adapter; the team-owned simulator remains unchanged. See [run guide](README_RUN.md#swarm-logic-implementation-and-scope).

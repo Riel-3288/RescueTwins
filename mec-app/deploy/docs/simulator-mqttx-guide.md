@@ -1,87 +1,87 @@
-> 2026-11-11 当前版本已改为 50×30、A/B 两区、drone-A/B，并增加独立 MEC swarm-fusion 服务。当前启动与部署以 [README_RUN.md](../README_RUN.md) 为准；下文早期三分区说明保留为历史记录。
+> On 2026-11-11, the version changed to a 50x30 map, zones A/B and drone-A/B, with a separate MEC swarm-fusion service. Follow [README_RUN.md](../README_RUN.md) for current startup and deployment instructions. The earlier three-zone instructions below are retained as historical notes.
 
-# 本地火灾模拟器、Dashboard 与 MQTTX
+# Local fire simulator, Dashboard and MQTTX
 
-这是一套用于联调的简化工厂模型，不是经过标定的火灾 CFD 模型。模拟器、网页、Broker
-和本地演示 CSE 均可在 Windows / Python 3.13 上运行，不需要 Docker。
-本模块的 demo 放在 Selina 负责的目录中，未修改队友的 simulation/、twin/ 或 cse-config/。
+This simplified factory model supports integration testing. It has no calibrated fire CFD model. The simulator, dashboard, broker
+and local demo CSEs can run on Windows / Python 3.13 without Docker.
+The module's demo is located in Selina's directory. Teammates' simulation/, twin/ and cse-config/ files were preserved.
 
-## 运行方式
+## Run modes
 
-使用 Python 3.13，在本目录运行统一入口。默认是团队文件回放，不启动 Broker、bridge 或 CSE：
+Use Python 3.13 and run the unified launcher from this directory. The default replays team files with the broker, bridge and CSE left off:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\start-demo.ps1 -Mode Recorded
 ```
 
-打开 http://127.0.0.1:8765/#recorded，上传或使用当前 simulation 目录的记录。该模式用 requirements.txt；首次运行自动安装缺少的依赖。Ctrl+C 关闭网页服务。
+Open http://127.0.0.1:8765/#recorded and upload files or use recordings in the simulation directory. This mode uses requirements.txt and installs missing dependencies on first launch. Ctrl+C stops the web service.
 
-| Mode 参数 | 用途 | 依赖 | 边界 |
+| Mode | Purpose | Dependencies | Scope |
 |---|---|---|---|
-| Recorded（默认） | 上传 JSON/JSONL、回放、drone 规划、导出 robot 任务建议 | requirements.txt | 离线，不发设备指令 |
-| SwarmHeadless | Sariel 原脚本的 random/swarm 基准及 JSONL 导出 | requirements-simulation.txt | 三架 drone；会重新生成 simulation 中的两个输出文件 |
-| Swarm | 同上，随后打开二维动画 | requirements-simulation.txt | 需要图形桌面；动画前先跑 benchmark |
-| LocalDemo | 旧工厂四 agent 演示及本地 MQTT | requirements-demo.txt | 独立示例，不是团队 oneM2M 接入链路 |
-| LocalCse | 旧工厂演示＋临时本地 ACME A/B/IN | requirements-demo.txt | 验证隔离的 MQTT/HTTP 示例；不是团队 Mobius 环境 |
+| Recorded (default) | JSON/JSONL upload, replay, drone planning and robot task suggestion export | requirements.txt | Offline, with no device commands |
+| SwarmHeadless | Random/swarm benchmark and JSONL export using Sariel's original script | requirements-simulation.txt | Three drones. Regenerates the two simulation output files. |
+| Swarm | Same workflow, followed by a 2D animation | requirements-simulation.txt | Requires a graphical desktop. Runs benchmarks before animation. |
+| LocalDemo | Legacy four-agent factory demo and local MQTT | requirements-demo.txt | Standalone example, separate from the team's oneM2M integration |
+| LocalCse | Legacy factory demo with temporary local ACME A/B/IN | requirements-demo.txt | Tests an isolated MQTT/HTTP example, separate from the team Mobius environment |
 
-例如 `powershell -ExecutionPolicy Bypass -File .\start-demo.ps1 -Mode SwarmHeadless`。`-CheckOnly` 只检查并准备所选模式的依赖。`-WithoutCse` 兼容旧用法，相当于 LocalDemo。
+For example, `powershell -ExecutionPolicy Bypass -File .\start-demo.ps1 -Mode SwarmHeadless`. `-CheckOnly` checks/prepares dependencies for the selected mode. `-WithoutCse` supports the older workflow and selects LocalDemo.
 
-团队接入仅使用 oneM2M MQTT binding，见后面的交接说明及 native-import。不要向团队 Broker 发布普通 rescuetwin topic，也不要为它启动 bridge/provision。
+Team integration uses oneM2M MQTT binding only. See the handoff notes and native-import. Keep plain rescuetwin topics and bridge/provision commands limited to their separate demo environments.
 
-以下 MQTTX 普通 topic 章节仅对应 LocalDemo/LocalCse 的旧隔离演示。其端口为 18883；团队 Broker 则是 10.70.80.245:1883、需要账号，并使用 /oneM2M 请求/响应。
+The MQTTX plain-topic sections below apply only to legacy isolated LocalDemo/LocalCse. Their port is 18883. The team broker is 10.70.80.245:1883, requires an account and uses /oneM2M requests/responses.
 
-## MQTTX 逐项配置
+## MQTTX configuration
 
-MQTTX 是客户端，必须先启动上面的 Broker。安装 MQTTX 本身不会创建 Broker。
+MQTTX is a client. Start the broker described above first. Installing MQTTX alone does not create a broker.
 
-### 终端成功提示与 MQTTX 连接状态
+### Terminal success messages and MQTTX connection state
 
-运行 publish 后出现 `MQTT broker acknowledged publication` 是成功提示，表示 Broker
-已确认收到该消息。新的提示会明确以 `SUCCESS` 开头。这条命令使用自己的短连接，发送后退出；
-MQTTX 使用另一条独立连接，需要在 MQTTX 中点击右上角 **Connect（▶）**。
+After publishing, `MQTT broker acknowledged publication` reports successful broker acknowledgment
+of the message. Updated messages explicitly start with `SUCCESS`. The command uses its own short-lived connection and exits after sending.
+MQTTX uses a separate connection. Click **Connect (▶)** in its top-right corner.
 
-若显示 `Client not connected`，先选中左侧 **RescueTwins Local**，确认地址
-`127.0.0.1:18883`，再点击 Connect。连接成功后，右上角按钮悬停会显示 **Disconnect**，
-消息计数会随订阅数据增加。保存连接配置、订阅列表或 JSON 草稿，都不代表连接已建立。
+If it shows `Client not connected`, select **RescueTwins Local** on the left and confirm
+`127.0.0.1:18883`, then click Connect. On success, hovering over the top-right button shows **Disconnect**,
+and subscribed messages increase the message count. Saving connection settings, subscriptions or a JSON draft does not establish a connection.
 
-发送前选 JSON、QoS 1、Retain 关闭。测试时间必须更新为当前 UTC；未来时间会显示
-`Future timestamp`，这属于数据新鲜度提示，与 Broker 连接是两个问题。
+Before sending, select JSON, QoS 1 and Retain off. Update the test timestamp to current UTC. Future timestamps display
+`Future timestamp`, a data-freshness warning independent of the broker connection.
 
-1. 点击 New Connection / 新建连接（通常是 `+`）。
-2. 填写以下内容，点击 Connect / 连接。
+1. Click New Connection, usually shown as `+`.
+2. Enter these settings and click Connect.
 
-| MQTTX 字段 | 本地演示值 |
+| MQTTX field | Local demo value |
 |---|---|
 | Name | RescueTwins Local |
-| Client ID | mqttx-rescuetwins-selina（与其他客户端保持不同） |
-| Host / 协议 | mqtt:// |
-| Host / 地址 | 127.0.0.1 |
-| Port | 18883（不是 1883，也不是网页端口 8765） |
+| Client ID | mqttx-rescuetwins-selina (unique among connected clients) |
+| Host / protocol | mqtt:// |
+| Host / address | 127.0.0.1 |
+| Port | 18883 (separate from 1883 and web port 8765) |
 | MQTT Version | 3.1.1 |
-| Username / Password | 留空 |
-| SSL/TLS | 本地演示关闭 |
-| Clean Session | 开启 |
-| Keep Alive | 60 秒 |
+| Username / Password | Leave blank |
+| SSL/TLS | Off for the local demo |
+| Clean Session | On |
+| Keep Alive | 60 seconds |
 
-如果 Host 是单个文本框，则填 `mqtt://127.0.0.1`；如果协议和地址分开，按上表填写。
+If Host is one text box, enter `mqtt://127.0.0.1`. If protocol/address are separate fields, use the table above.
 
-3. 连接成功后，点击 New Subscription / 新建订阅。
-4. Topic 填 `rescuetwin/#`，QoS 选 `1`。保存后，会看到三个节点、六类读数；模拟器发送变化值和定期心跳，积压时降低普通读数频率。
-5. 再订阅 `rescuetwin-ack/#`（CSE 保存成功的 ACK）。
-6. 如需 agent 坐标和跨区事件，再订阅 `rescuetwin-sim/#`。
+3. After connecting, click New Subscription.
+4. Set Topic to `rescuetwin/#` and QoS to `1`. After saving, you should see three nodes and six reading types. The simulator sends changes and periodic heartbeats, reducing ordinary reading frequency during backlog.
+5. Also subscribe to `rescuetwin-ack/#` for successful CSE storage acknowledgments.
+6. For agent positions and zone-crossing events, subscribe to `rescuetwin-sim/#`.
 
-| Topic | 用途 |
+| Topic | Purpose |
 |---|---|
-| rescuetwin/A/node-01/temperature | A 区 node-01 温度 |
-| rescuetwin/A/node-02/smoke_raw | A 区 node-02 烟雾 mV |
-| rescuetwin/B/node-03/temperature | B 区 node-03 温度 |
-| rescuetwin-ack/A/node-01 | Bridge 已将记录写入 CSE 的通知 |
-| rescuetwin-sim/agents/agent-01 | 自有模拟坐标，单位 m；不是 MEC013 API 响应 |
-| rescuetwin-sim/events | 本地 geofence 跨区事件；不是 MEC021 完成通知 |
+| rescuetwin/A/node-01/temperature | Zone A node-01 temperature |
+| rescuetwin/A/node-02/smoke_raw | Zone A node-02 smoke in mV |
+| rescuetwin/B/node-03/temperature | Zone B node-03 temperature |
+| rescuetwin-ack/A/node-01 | Bridge notification that the record was written to the CSE |
+| rescuetwin-sim/agents/agent-01 | Local simulated coordinates in metres, separate from MEC013 responses |
+| rescuetwin-sim/events | Local geofence boundary-crossing events, with no MEC021 completion claim |
 
-## 在 MQTTX 手动发送一次
+## Send one message manually in MQTTX
 
-发送区域 Topic 填 `rescuetwin/A/node-01/temperature`，QoS `1`，Retain **关闭**，Payload 选 JSON：
+In the publish area, set Topic to `rescuetwin/A/node-01/temperature`, QoS to `1`, Retain **off**, and Payload format to JSON:
 
 ```json
 {
@@ -96,26 +96,26 @@ MQTTX 使用另一条独立连接，需要在 MQTTX 中点击右上角 **Connect
 }
 ```
 
-把 `observed_at` 换成发送时的 UTC 时间；每次测试更新，避免被去重或显示为过期。
-点击发送后，你在 `rescuetwin/#` 订阅中应收到自己的消息。由于模拟器每秒持续发送
-node-01 的数据，最新值稍后会被下一次模拟读数更新，这属正常现象。
+Replace `observed_at` with the UTC send time. Update it for each test to avoid deduplication or stale-data warnings.
+After publishing, your own message should appear in the `rescuetwin/#` subscription. The simulator continuously publishes
+node-01 data every second, so the next simulated reading will subsequently replace the latest displayed value.
 
-如果要生成最新时间的消息，也可在第二个终端执行：
+To generate a message with the current timestamp, run this in a second terminal:
 
 ```powershell
 .\.venv\Scripts\python.exe -m rescuetwin publish sample-temperature.json --now
 ```
 
-只有真实设备读数才使用 `source: physical`。`value` 用 JSON 数字而非字符串；`presence`
-使用 true/false。消息必须恰好包含约定八个字段，device/zone/sensor 必须与 topic 一致。
+Use `source: physical` only for real device readings. `value` must be a JSON number rather than a string. `presence`
+uses true/false. Messages must contain exactly the agreed eight fields. Device/zone/sensor must match the topic.
 
-## 玩一次完整场景
+## Run a complete scenario
 
-1. Dashboard 点击 **Run Fire Demo**：重置地图，在 A 区设置火源并运行。
-2. 观察火源周边温度和烟雾向邻格变化，墙体阻隔扩散。
-3. 切换 **Temperature / Smoke / Layout** 查看地图；agent 使用内置 A* 避开危险格子。
-4. MQTTX 中过滤 node-01 temperature/smoke_raw，查看与地图一致的模拟读数。
-5. Dashboard 的 **Readings Stored in CSE** 应持续增加；可直接读取 CSE 验证：
+1. Click **Run Fire Demo** in the dashboard to reset the map, add a fire in zone A and start the simulation.
+2. Observe temperature and smoke changing in adjacent cells around the fire. Walls block diffusion.
+3. Switch between **Temperature / Smoke / Layout**. Agents use built-in A* to avoid hazardous cells.
+4. Filter node-01 temperature/smoke_raw in MQTTX to inspect readings matching the simulated map.
+5. **Readings Stored in CSE** should keep increasing. Verify by reading the CSE directly:
 
 ```powershell
 $readHeaders = @{
@@ -128,80 +128,80 @@ $latestReading = Invoke-RestMethod -Uri 'http://127.0.0.1:18001/~/id-mn-a/cse-mn
 $latestReading.'m2m:cin'.con | ConvertFrom-Json
 ```
 
-6. 通过 **Map Click Action** 设置新火源、修改障碍或给选中 agent 设置新目标。
-7. agent 穿越 x=50m 边界后，经 2m 缓冲及连续两次确认，记录跨区事件。
-8. 导出传感器 CSV 或状态 JSON 作为联调证据。
+6. Use **Map Click Action** to add a fire, edit obstacles or set a new goal for the selected agent.
+7. After an agent crosses x=50m, a zone event is recorded following a 2m buffer and two consecutive confirmations.
+8. Export sensor CSV or state JSON as integration evidence.
 
-## Dashboard 页面与地图操作
+## Dashboard pages and map controls
 
-侧栏与窄屏顶部导航均可切换以下三个独立页面：
+The sidebar and narrow-screen top navigation switch between these three pages:
 
-- **Factory Overview**：实时 3D 地图、2D Grid、温度/烟雾图层、火源与障碍编辑、趋势和事件。
-- **Sensors & Messages**：按设备、区域、来源、传感器、质量和新鲜度筛选读数；Inspect 查看原始
-  八字段 JSON，Copy JSON 复制，Export Filtered CSV 导出筛选后的最新读数。消息日志在当前浏览器
-  缓存最近 500 条；Pause Log 只暂停此缓存，不停止 MQTT 或模拟器。重新打开网页会清空浏览器缓存。
-- **Agent Status**：筛选和选择 agent，查看区域、状态、当前位置、目标、行程、重规划次数、
-  局部风险和路线。目标坐标使用米并吸附到 2m 网格中心；Apply Goal 提交，暂停时需 Resume 才移动。
-  Choose Goal on Map 切回地图选目标，Locate in 3D 将镜头移到所选 agent。
+- **Factory Overview**: live 3D map, 2D Grid, temperature/smoke layers, fire/obstacle editing, trends and events.
+- **Sensors & Messages**: filter readings by device, zone, source, sensor, quality and freshness. Inspect opens the original
+  eight-field JSON, Copy JSON copies it, and Export Filtered CSV exports filtered latest readings. The message log keeps the latest 500 entries
+  in the current browser session. Pause Log pauses this buffer while MQTT and the simulator continue. Reopening the page clears the browser buffer.
+- **Agent Status**: filter/select agents and inspect zone, state, current position, goal, distance, replan count,
+  local risk and route. Goal coordinates use metres and snap to 2m grid-cell centres. Apply Goal submits the goal. Resume movement if paused.
+  Choose Goal on Map returns to the map for selection. Locate in 3D centres the camera on the selected agent.
 
-3D 地图的鼠标操作：左键拖动旋转；**按住鼠标中间滚轮拖动平移**；滚动滚轮缩放；右键拖动也可
-平移。无中键的触控板可用 Shift + 左键拖动平移。**Reset View** 恢复默认视角。单击地面执行
-Map Click Action，拖动镜头不会放置火源。右下角按钮可旋转、缩放。WebGL 不可用时可切换 2D Grid。
+For 3D mouse controls, drag with the left button to rotate, **hold and drag the middle wheel to pan**, and scroll to zoom. Right-drag also
+pans. On touchpads without a middle button, use Shift + left-drag. **Reset View** restores the default camera. A ground click executes
+Map Click Action. Camera drags place no fires. Bottom-right controls rotate/zoom. Switch to 2D Grid if WebGL is unavailable.
 
-3D 建筑、火焰与烟雾是同一二维模型的可视化；未增加三维火灾物理。网页源码修改与构建方式见
-[模块 README](../README.md#修改网页)。已有服务通常只需刷新网页；Python 服务修改后需先在原终端
-Ctrl+C，再重新运行 start-demo.ps1，避免同时启动两个 Bridge。
+The 3D building, flames and smoke visualize the same 2D model, without adding 3D fire physics. For web-source editing/building, see
+the [module README](../README.md#editing-the-dashboard). An existing service normally needs only a browser refresh. After Python service changes, press
+Ctrl+C in the original terminal, then rerun start-demo.ps1 to avoid starting two bridges.
 
-## Dashboard 指标含义
+## Dashboard metrics
 
-- 地图温度/烟雾来自模型，不能代表真实工厂测量值。烟雾指数为归一化模拟强度。
-- MQTT 接收数来自真实订阅回调。PUBACK 表示 Broker 确认，包含模拟器发送的遥测和坐标等消息。
-- CSE 保存数来自 Bridge outbox 的 delivered 状态，跨程序重启累计；地图重置不会删除 CSE 历史。
-- physical 与 simulation 分行显示。新鲜有效的外部 MQTT 告警会添加传感器危险排除区并触发 inspection task；不会注入虚假的火焰或改写物理模型温度。
-- 传感器表按接收的各类最新读数展示；缺失/invalid 不作为有效值，过期时间单独标记。
-- Overview 的历史 CSV 最多保留本次运行最近 10,000 条有效遥测；Sensors 页的 CSV 是当前筛选后的
-  最新读数。趋势保留 180 个模拟秒采样。
-- 暂停仅暂停环境演变，遥测仍按变化值与心跳发送；1×/2×/4×只影响模拟时间。
+- Map temperature/smoke come from the model. They do not establish actual factory measurements. Smoke is a normalized simulated intensity.
+- MQTT received counts come from real subscription callbacks. PUBACK indicates broker acknowledgment and includes simulator telemetry and positions.
+- CSE stored counts come from delivered bridge-outbox state and accumulate across restarts. Resetting the map preserves CSE history.
+- physical and simulation are displayed separately. Fresh valid external MQTT alerts create sensor hazard-exclusion areas and inspection tasks. They preserve the physical-model temperature and add no artificial flames.
+- The sensor table shows the latest received value of each type. Missing/invalid data is excluded from valid readings, and stale data is marked separately.
+- The Overview historical CSV retains up to 10,000 valid telemetry records from the current run. Sensors CSV exports the currently filtered
+  latest readings. Trends retain 180 simulated seconds of samples.
+- Pause stops environmental evolution while change/heartbeat telemetry continues. 1x/2x/4x affect simulation time only.
 
-## 模型和集成边界
+## Model and integration scope
 
-50×30 网格（每格 2m），固定随机种子 7，固定 0.25s 步长。热量/烟雾在非墙体四邻格
-之间离散扩散并衰减，火源持续注入，邻格按简化规则蔓延。无燃料耗尽、通风、燃烧化学、
-建筑热工或真实 CO 浓度模型；mV 为示例模拟值，不可换算成 ppm。
-路径规划结合模拟地图与简单传感器阈值产生的危险排除区；传感器影响范围是假设值，路径示例仍不是队友的 swarm 算法。
+The 50x30 grid uses 2m cells, fixed random seed 7 and a fixed 0.25s step. Heat/smoke diffuse discretely and decay
+between non-wall four-neighbour cells. Sources inject continuously and neighbouring cells ignite using simplified rules. Fuel depletion, ventilation, combustion chemistry,
+building thermodynamics and real CO-concentration models are absent. mV values are illustrative and cannot be converted directly to ppm.
+Route planning combines the simulated map with hazard-exclusion areas from simple sensor thresholds. Sensor ranges are assumed. The example planner is separate from the teammate's swarm algorithm.
 
-这版不向公共 Sandbox 注入 UE 位置，不将 Monaco UE 自动映射为工厂 agent，也不调用
-MEC021。后续由 MEC-IPE 对接实际 MEC 服务、由队友算法与 dashboard/资源接口集成。
+This version neither injects UE positions into the public Sandbox nor automatically maps Monaco UEs to factory agents, and it does not invoke
+MEC021. MEC-IPE will integrate actual MEC services, followed by the team's algorithm and dashboard/resource interfaces.
 
-## 下一阶段建议顺序
+## Suggested next steps
 
-1. **先稳定数据链路**：持续运行并观察 CSE pending 是否增长，区分接收速率与写入速率；测量
-   observation → MQTT → CIN → 路线更新的时间，处理重试、积压、去重和历史保留。当前 SQLite
-   已有状态索引，但不能据此认为 CSE 吞吐问题解决；不要删除 outbox 来掩盖积压。
-2. **接入真实硬件与算法**：接入 ESP32 的 physical 读数，明确节点与地图坐标的对应关系；与队友
-   约定危险地图和 agent 指令/回执接口，使告警、派单、重规划、完成状态形成闭环。现有内置 A*
-   已结合传感器阈值产生的危险排除区规划，并可以触发本地 inspection 任务；真实 ESP32 与队友 swarm 仍需联调。
-3. **完成实际 MEC/oneM2M 联调**：拿到 shared VM/两个 MEC host 的实际访问参数，部署 MN-A/B
-   和应用；验证真实 Location/RNIS、MEC-IPE 双向通信、MN→IN 注册与路由。区域事件与 CSE 切换、
-   订阅连续性、MEC021 应用状态迁移应分别验收；本地跨区动画不能证明这些已完成。
-4. **补齐演示证据**：固定场景与随机种子，对比无火灾/有火灾、正常网络/延迟丢包、直接 MN/经 IN，
-   导出 P50/P95 延迟、成功率、丢失记录、重规划次数和到达时间；为告警加确认、恢复与事件编号。
-5. **部署与展示完善**：在实际主机验收 CSE HTTPS、MQTT mTLS/设备 ACL 和重启恢复；远程 Dashboard
-   再配置登录和访问控制。最后再增加场景保存/加载、回放、楼层与设备模型，避免先堆装饰性 3D 效果。
+1. **Stabilize the data path**: run continuously and watch CSE pending growth, distinguishing reception and write rates. Measure
+   observation-to-MQTT-to-CIN-to-route-update timing. Handle retries, backlog, deduplication and retention. SQLite has state indexes,
+   but CSE throughput still needs verification. Preserve the outbox when investigating backlog.
+2. **Integrate real hardware and algorithms**: connect physical ESP32 readings and map nodes to coordinates. Agree with teammates
+   on hazard-map and agent command/feedback interfaces to close the alert, dispatch, replan and completion loop. Built-in A*
+   already uses threshold-based exclusion areas and can trigger local inspection tasks. Real ESP32 and teammate-swarm integration remain pending.
+3. **Complete actual MEC/oneM2M integration**: obtain access details for the shared VM/two MEC hosts, deploy MN-A/B
+   and applications, and verify real Location/RNIS, bidirectional MEC-IPE, MN-to-IN registration and routing. Accept zone events, CSE switching,
+   subscription continuity and MEC021 application-state migration separately. Local boundary-crossing animation alone provides insufficient evidence.
+4. **Collect demo evidence**: fix the scenario and seed. Compare fire/no fire, normal/impaired network and direct-MN/via-IN paths.
+   Export P50/P95 latency, success rate, missing records, replan count and arrival times. Add alert acknowledgment, recovery and event IDs.
+5. **Finish deployment and presentation**: validate CSE HTTPS, MQTT mTLS/device ACLs and restart recovery on actual hosts. Add remote-dashboard
+   login/access control. Then add scenario save/load, replay, floors and device models, prioritizing functionality before decorative 3D effects.
 
-## 常见问题
+## Troubleshooting
 
-- Client not connected：MQTTX 自己尚未连接；点击右上角 Connect，不需要修改八字段 JSON 来解决连接问题。
-- JSON SyntaxError：在消息编辑框内 Ctrl+A 后粘贴完整 JSON，检查没有多余的结束括号或其他字符。
-- 看不到新消息：清除顶部 Topic/Message 搜索条件，并滚动到消息列表底部；旧消息会保留。
-- Connection refused：Broker 未运行、终端已关闭，或把端口填成 1883。
-- Port already in use：已有一次 demo/Compose 在运行；复用它或在原终端 Ctrl+C 停止。
-- MQTT 收到但 CSE pending 增加：检查 A/B 的 CSE 和 AE identity，不要只看 MQTTX 连接状态。
-- CSE quarantined 增加：通常为格式/权限问题，检查 runtime/demo/bridge.sqlite 和终端输出。
-- 无消息：先订阅 `rescuetwin/#`，确认不是 `rescuetwins/#`，并保留启动终端。
-- 外部设备连接不上 127.0.0.1：该地址只代表当前电脑。硬件接入需要另行配置可达且带认证的 Broker。
+- Client not connected: MQTTX itself is disconnected. Click Connect at the top right. Connection errors require connectivity fixes rather than changes to the eight-field JSON.
+- JSON SyntaxError: press Ctrl+A in the payload editor and paste the complete JSON. Check for extra closing braces or other characters.
+- New messages missing: clear the Topic/Message search filters and scroll to the bottom. Older messages remain in the list.
+- Connection refused: the broker is stopped, its terminal was closed, or the port was entered as 1883.
+- Port already in use: a demo/Compose instance is already running. Reuse it or stop it with Ctrl+C in its original terminal.
+- MQTT received but CSE pending grows: check A/B CSEs and AE identities, beyond the MQTTX connection indicator.
+- CSE quarantined grows: usually a format/permission issue. Inspect runtime/demo/bridge.sqlite and terminal output.
+- No messages: subscribe to `rescuetwin/#`, check the spelling, and keep the launcher terminal open.
+- External device cannot reach 127.0.0.1: that address refers to the current computer. Hardware access needs a reachable, authenticated broker configuration.
 
-MQTTX 官方说明：https://mqttx.app/docs
+Official MQTTX documentation: https://mqttx.app/docs
 
 
 ## CSE backlog recovery and rescue loop
@@ -316,30 +316,30 @@ Live service discovery and GET checks on 2026-11-10 confirmed Location at `https
 
 Still agree with the team: zone C's CSE routing, mV calibration or unit-specific thresholds, per-drone AE/ACP and broker permissions, UE-to-agent mapping and a coordinate transform, and the real robot's task/feedback interface. Keep these explicit; changing only a zone label does not implement handover.
 
-+
-+### 本轮 mV 与运行方式验证（2026-11-10）
-+
-+- 完整 Python 回归：58 passed，3 项本地 ACME 启动/HTTP 超时。停止较重的并行任务后，三项失败测试与 native-import 测试一并复查，8 passed，未修改测试超时或跳过断言。
-+- 新增直接 oneM2M MQTT 上传 mV 记录并通过 HTTP 精确读回的本地测试通过；未连接团队 Broker 写入。一次性 native MQTT 客户端使用唯一 Client ID 和临时会话，断开后不保留无用订阅。
-+- 前端模型测试 7 passed；Edge 浏览器上传、时间轴、drone 规划/往返、JSON 下载、旧页面和手机布局检查通过。
-+- Sariel 原始代码在临时副本运行完整 20 轮 random/swarm 基准，约 58 秒完成，导出 267 条传感器和 280 条 agent 日志。绘图和实际动画回调的前 5 帧检查通过；图形桌面窗口需要组员本地打开。
-+- Recorded、SwarmHeadless、LocalCse 依赖入口检查通过。Recorded 的独立网页启动通过；LocalDemo 的本地 MQTT 消息检查通过。LocalCse 的底层真实 ACME/MQTT 互通在回归中验证，未把它视为团队 Mobius 联通。
-+- 队友目录 14 个原有文件校验值保持不变。smoke/co 为 mV；有效电压值支持非负小数，无 ADC 计数限制。quality=invalid 的原始无效读数仍按现有规则保留，不冒充有效测量。
-+- Hosted Location/RNIS/MEC011 GET 成功；通过团队 Mobius 读取仍超时，MQTT 密码和独立 drone/robot 权限仍待实际环境配置。
-+
 
-## 2026-11-11 本地映射与 robot 更新
+### mV and run-mode verification (2026-11-10)
 
-演示 UE 映射：drone-A=10.10.0.1、drone-B=10.1.0.1、drone-C=10.100.0.1，见 config.team.example.json 的 mec_recorded_mapping。这是演示约定，不证明与实体无人机的对应关系。
+- Full Python regression: 58 passed with three local ACME startup/HTTP timeouts. After stopping heavier parallel tasks, the three failures and native-import tests were rerun together, yielding eight passes without timeout changes or skipped assertions.
+- A new local test passed for direct oneM2M MQTT upload of an mV record followed by exact HTTP read-back. It made no writes to the team broker. One-shot native clients use unique Client IDs and temporary sessions, leaving no unused subscriptions after disconnecting.
+- Seven frontend model tests passed. Edge browser checks covered uploads, timeline, drone planning/round trips, JSON download, older pages and mobile layout.
+- Sariel's original code ran all twenty random/swarm benchmark rounds in a temporary copy, taking about 58 seconds and exporting 267 sensor and 280 agent entries. Plotting and the first five actual animation callbacks passed. Teammates still need to open the graphical desktop window locally.
+- Recorded, SwarmHeadless and LocalCse dependency entry points passed. Recorded's standalone web startup passed, as did LocalDemo MQTT messaging. LocalCse real ACME/MQTT exchange passed in regression, independently of team Mobius connectivity.
+- Checksums of fourteen original teammate files were preserved. Smoke/CO use mV. Valid voltages support nonnegative decimals without ADC-count limits. Raw quality=invalid readings retain the existing handling and remain invalid measurements.
+- Hosted Location/RNIS/MEC011 GETs succeeded. Team-Mobius reads still timed out. MQTT passwords and independent drone/robot permissions still required configuration in the actual environment.
 
-Recorded Mission 的 Read MEC positions 读取 Location 并投影到 30×20 网格；演示边界 south=43.7314、north=43.7514、west=7.4202、east=7.4402，X 向东、Y 向南，越界拒绝。这是未现场标定的线性投影，不改变历史轨迹或 CSE 路由，不用于自动派发。投影结果可能落在仿真墙体上；真实场地需地图控制点校准。
 
-C 区来自 Sariel 的 simulation/rescue_sim.py 第22、44、46行等。当前 CSE 仅 MN-A/B；保留 C 本地仿真，simulation_cse_routing.C=null，不自动把 C 改成 B。
+## 2026-11-11 local mapping and robot updates
 
-Robot Task Suggestions 新增 Simulate local robot：本地 robot-01 检查路径，产生 accepted/moving/completed 回执及路线。没有发送硬件指令，也没有修改 Sariel 的执行器。反馈入口 POST /api/control，action=robot_feedback，feedback 对象含 task_id、command_id、robot_id、executor=local_robot_simulation、递增 sequence、status 和 position。拒绝错误身份、过期/冲突回执和错误完成位置。切换回放、上传或重启取消未完成任务。本服务仅 loopback，不是外网回调。
+Demo UE mapping: drone-A=10.10.0.1, drone-B=10.1.0.1, drone-C=10.100.0.1. See mec_recorded_mapping in config.team.example.json. This demo convention has no verified correspondence to physical drones.
 
-27 项坐标/回执/原回放测试通过。浏览器确认本地 robot 完成回执；2026-11-11 最新真实 Location GET 返回404（此前曾200），需在个人 Sandbox 检查运行场景和 Try-it 地址。演示配置可保留，服务恢复后再读取；不能声称实时网络位置已连通。
+Recorded Mission's Read MEC positions reads Location and projects it onto a 30x20 grid. Demo bounds are south=43.7314, north=43.7514, west=7.4202, east=7.4402, with X east and Y south. Out-of-bounds positions are rejected. The linear projection lacks site calibration and preserves historical trajectories/CSE routing. It is excluded from automatic dispatch. Projected positions can fall inside simulated walls. A real site needs map control-point calibration.
 
-当前文件回放和 Hosted API 联调不需要 VM。Docker Desktop 可验证自己的容器和本地 Kubernetes，不能直接视为完整 ETSI MEC 平台。若需要平台管理/底层网络仿真，可按 STF_685 部署在可管理 Ubuntu 实体机或 VM；shared VM 只在选用该部署目标或验收明确要求时才必需。
+Zone C comes from Sariel's simulation/rescue_sim.py, including lines 22, 44 and 46. Only MN-A/B are currently available. Zone C remains in the local simulation with simulation_cse_routing.C=null, without silently mapping it to B.
 
-Zihan 排查顺序：确认有线 IP；检查 8001/8002/7599/1883 是否监听可达网卡而不是只有127.0.0.1；用自己LAN IP执行带oneM2M头的GET；检查限定来源的入站防火墙；双方确认同网络可路由或VPN。先 Test-NetConnection 证明 TCP 可达，再查 Originator/ACP，不用改 ACP 解决连接超时。
+Robot Task Suggestions adds Simulate local robot. Local robot-01 validates routes and generates accepted/moving/completed feedback and a route. It sends no hardware commands and preserves Sariel's executor. Feedback uses POST /api/control, action=robot_feedback. The feedback object includes task_id, command_id, robot_id, executor=local_robot_simulation, increasing sequence, status and position. Incorrect identities, stale/conflicting receipts and incorrect completion positions are rejected. Replay changes, uploads and restarts cancel unfinished tasks. The service binds to loopback only.
+
+Twenty-seven coordinate/feedback/original-replay tests passed. Browser checks confirmed local robot completion feedback. The latest real Location GET on 2026-11-11 returned 404 after earlier 200 responses. Check the personal Sandbox's active scenario and Try-it URL. Retain the demo configuration and retry when the service recovers. Live network-position integration remains unverified.
+
+File replay and Hosted API integration currently need no VM. Docker Desktop can verify application containers and local Kubernetes manifests. Full ETSI MEC platform administration is a separate deployment. If platform management or underlying network emulation is needed, follow STF_685 on an administrable Ubuntu machine or VM. A shared VM is required only when selected as the deployment target or explicitly required for acceptance.
+
+Zihan's troubleshooting order: confirm the wired IP, check that 8001/8002/7599/1883 listen on a reachable interface, perform a GET with oneM2M headers against the laptop's LAN IP, check source-limited inbound firewall rules, and confirm routable connectivity or VPN between both computers. Establish TCP reachability with Test-NetConnection before inspecting Originator/ACP permissions. ACP changes cannot fix a TCP timeout.

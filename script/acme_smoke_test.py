@@ -5,10 +5,10 @@ import uuid
 import requests
 
 
-#地址
+# CSE base URL
 BASE_URL = "http://127.0.0.1:8000/~/id-in/cse-in"
 
-# 身份和资源名称
+# Identity and resource names
 AE_ORIGINATOR = "CRescueTwinTest"
 AE_NAME = "rescuetwin-test"
 CONTAINER_NAME = "temperature"
@@ -67,11 +67,11 @@ status, data = send_request(
 )
 
 if status == 201:
-    print("\n测试应用注册成功。")
+    print("\nTest application registered successfully.")
 elif status in (403, 409):
-    print("\n测试应用已存在，继续使用它。")
+    print("\nTest application already exists. Reusing it.")
 else:
-    print("\n无法创建或确认测试应用，程序停止。")
+    print("\nCannot create or confirm the test application. Stopping.")
     sys.exit(1)
 
 
@@ -90,11 +90,11 @@ status, _ = send_request(
 )
 
 if status == 201:
-    print("\ntemperature 容器创建成功。")
+    print("\nTemperature container created successfully.")
 elif status in (403, 409):
-    print("\ntemperature 容器已存在，继续使用它。")
+    print("\nTemperature container already exists. Reusing it.")
 else:
-    print("\n无法创建或确认 temperature 容器，程序停止。")
+    print("\nCannot create or confirm the temperature container. Stopping.")
     sys.exit(1)
 
 
@@ -124,10 +124,10 @@ status, _ = send_request(
 )
 
 if status != 201:
-    print("\n无法写入温度数据，程序停止。")
+    print("\nCannot write temperature data. Stopping.")
     sys.exit(1)
 
-print("\n模拟温度数据写入成功。")
+print("\nSimulated temperature data written successfully.")
 
 
 
@@ -138,7 +138,7 @@ status, _ = send_request(
 )
 
 if status != 200:
-    print("\n无法读取最新温度数据，程序停止。")
+    print("\nCannot read the latest temperature data. Stopping.")
     sys.exit(1)
 
-print("\n完成：已确认 AE 和容器存在，写入并读回一条温度数据。")
+print("\nDone: confirmed the AE and container, then wrote and read back one temperature record.")

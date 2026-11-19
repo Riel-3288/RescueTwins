@@ -1,172 +1,172 @@
-# 运行 MEC、Simulation 和 Dashboard
+# Running MEC, Simulation and Dashboard
 
-需要 Python 3.13。以下 Windows 命令都在项目根目录执行。
+Python 3.13 is required. Run the Windows commands below from the repository root.
 
-## 给评委看的实时 Swarm（新）
+## Live Swarm demo for judges (new)
 
-在 repo 根目录的 VS Code PowerShell 运行一个终端：
+Run this in a VS Code PowerShell terminal at the repository root:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File "$PWD\mec-app\deploy\start-demo.ps1" -Mode LiveSwarm
 ```
 
-打开 http://127.0.0.1:8765/#overview。默认80×40网格、8架drone、A/B两区，会自动开始实时探索。不是 JSONL 回放，也不需要 Broker、CSE 或 Hosted Sandbox。想展示6架，追加 `-DroneCount 6`。
+Open http://127.0.0.1:8765/#overview. Live exploration starts automatically with an 80x40 grid, eight drones and zones A/B. It runs without JSONL replay, a broker, CSE or Hosted Sandbox. Append `-DroneCount 6` to show six drones.
 
-- 顶部 Live Swarm Exploration 显示实际 fleet、覆盖率、共享格数、Fusion轮次。
-- 选择 Exploration 图层查看共享探索地图；Temperature/Smoke 仍显示示例火情场。
-- Run Fire Demo 在实时地图加火；drone 根据各自的局部观测避开已知危险。
-- 在 Agent Status 可以查看8架的目标/路线。手动设置目标会暂时覆盖该drone的swarm控制；Resume swarm control 重新启用自主探索。
-- 默认是嵌入式 Fusion：每架drone逐轮报告位置及局部观测，Factory只使用合并地图的决策移动。界面明确显示 Embedded Fusion，不冒充已部署到远程MEC。
+- Live Swarm Exploration at the top shows the actual fleet, coverage, shared-cell count and fusion rounds.
+- Select the Exploration layer to view the shared exploration map. Temperature/Smoke still display the illustrative fire fields.
+- Run Fire Demo adds fire to the live map. Drones avoid known hazards using their local observations.
+- Agent Status shows the goals/routes of all eight drones. Setting a manual goal temporarily overrides swarm control for that drone. Resume swarm control restores autonomous exploration.
+- Fusion is embedded by default. Each drone reports its position and local observations every round, and Factory moves using decisions from the merged map. The interface labels this mode Embedded Fusion, without claiming remote MEC deployment.
 
-要演示独立 HTTP Fusion，终端1运行下方 SwarmService，终端2在 repo 根目录运行：
+To demonstrate separate HTTP Fusion, run SwarmService below in terminal 1, then run this from the repository root in terminal 2:
 
 ```powershell
 $env:PYTHONPATH = "$PWD\mec-app\deploy"
 & "$PWD\mec-app\deploy\.venv\Scripts\python.exe" -m rescuetwin.demo --live-swarm --swarm-url http://127.0.0.1:8780
 ```
 
-服务错误会暂停机群并显示原因，不会静默改用本地地图。
+Service errors pause the swarm and display the reason. They do not silently switch to a local map.
 
-配置在 config.example.json 的 live_factory：width、height、zone_x、cell_m、drone_count、radius、swarm_url；默认80、40、40、2、8、2、空字符串。zone_x 是格坐标，默认物理边界80m，地图160×80m。改布局/注册表会新建Fusion任务，重新计算覆盖率。
+Configuration is under live_factory in config.example.json: width, height, zone_x, cell_m, drone_count, radius, swarm_url. Defaults are 80, 40, 40, 2, 8, 2 and an empty string. zone_x uses grid coordinates. The default physical boundary is 80m and the map spans 160x80m. Changing the layout/registry creates a new Fusion mission and recalculates coverage.
 
-共享几何定义在 rescuetwin/layout.py；Fusion按每个任务的map配置和drone_ids校验，不再固定两架或50×30。原 simulation/rescue_sim.py 与其旧回放仍为50×30，两者是明确独立的地图，未重写队友文件。
+Shared geometry is defined in rescuetwin/layout.py. Fusion validates each mission's map configuration and drone_ids, supporting sizes beyond two drones or 50x30. The original simulation/rescue_sim.py and its earlier replay remain 50x30. These are separate maps, and the teammate's file was preserved.
 
-本轮已验证6/8架实时探索、地图融合、HTTP服务、手动目标、失联暂停、原传感器派单闭环及实际浏览器3D/探索层。实时演示的示例火情/网格运动不是实体无人机飞控或真实MEC021迁移。
+This round verified live exploration with six/eight drones, map fusion, HTTP service, manual goals, pause on disconnection, the existing sensor dispatch loop, and browser 3D/exploration layers. The live demo uses illustrative fire fields and grid motion. Physical flight control and real MEC021 migration remain outside this verification.
 
-## Runtime 清理
+## Runtime cleanup
 
-已清除14个 pytest/npm/搬迁临时缓存目录。runtime 还包含队列数据库、演示CSE状态和联调报告，并非全部是缓存；这些已保留。测试改用系统临时目录，不重新写入这一批 runtime/pytest-*。
+Fourteen pytest/npm/relocation cache directories were removed. Runtime also contains queue databases, demo CSE state and integration reports, which were retained. Tests now use the system temporary directory instead of recreating this batch of runtime/pytest-* directories.
 
-## 1. 启动 MEC 服务（原独立仿真入口）
+## 1. Start the MEC service (original separate simulation entry point)
 
-打开第一个终端，运行后保持窗口打开：
+Open the first terminal and keep it open after running:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\mec-app\deploy\start-demo.ps1 -Mode SwarmService
 ```
 
-服务地址：`http://127.0.0.1:8780`。
+Service URL: `http://127.0.0.1:8780`.
 
-## 2. 运行 Simulation
+## 2. Run Simulation
 
-打开第二个终端：
+Open a second terminal:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\mec-app\deploy\start-demo.ps1 -Mode Swarm
 ```
 
-模拟器会连接 MEC 服务、导出记录并显示动画。
+The simulator connects to the MEC service, exports records and displays an animation.
 
-- 不显示动画：把 `Swarm` 改成 `SwarmHeadless`。
-- 运行 20 轮对照测试：加上 `-Benchmark`，耗时会增加。
-- 连接 MEC 失败时会停止，请先确认第一个终端的服务正在运行。
+- For headless operation, replace `Swarm` with `SwarmHeadless`.
+- Append `-Benchmark` for a 20-run comparison. This takes longer.
+- A failed MEC connection stops the run. Confirm that the service in terminal 1 is running first.
 
-## 3. 打开 Dashboard
+## 3. Open the Dashboard
 
-等 Simulation 完成数据导出后，在第三个终端运行：
+After Simulation finishes exporting its data, run this in a third terminal:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\mec-app\deploy\start-demo.ps1 -Mode Recorded
 ```
 
-浏览器打开：<http://127.0.0.1:8765/#recorded>。
+Open <http://127.0.0.1:8765/#recorded> in a browser.
 
-Dashboard 显示记录回放。重新运行 Simulation 后，重启 Dashboard，或在网页中重新上传：
+The dashboard replays recorded data. After rerunning Simulation, restart the dashboard or upload these files again through the page:
 
 - `simulation/sim_sensor_data.jsonl`
 - `simulation/sim_agent_log.jsonl`
 
-首次启动会自动安装需要的依赖。Dashboard 也可以单独启动，查看已有记录。
+The first launch installs required dependencies automatically. The dashboard can also run independently to inspect existing recordings.
 
-## 读取 CSE 温度
+## Read CSE temperature
 
-按 [MQTT 读取说明](docs/mqtt-read-handoff.md) 操作。
+Follow the [MQTT read guide](docs/mqtt-read-handoff.md).
 
-Broker 地址、账号和读取身份填写在 `mec-app/deploy/config.mqtt-read.local.json`。
-这个文件需要从 `config.mqtt-read.example.json` 复制创建，密码通过环境变量设置。
+Enter the broker address, account and read identity in `mec-app/deploy/config.mqtt-read.local.json`.
+Create this file by copying `config.mqtt-read.example.json`. Set the password through an environment variable.
 
-MQTT 读取是独立命令，读取结果目前不会自动进入 Simulation 或 Dashboard。
+MQTT reads run as a separate command. Their results currently remain separate from Simulation and Dashboard inputs.
 
-## Ubuntu 运行
+## Running on Ubuntu
 
-在项目根目录创建环境并安装依赖，需要已安装 Python 3.13 和 venv：
+Create the environment and install dependencies from the repository root. Python 3.13 and venv must be installed:
 
 ```bash
 python3.13 -m venv mec-app/deploy/.venv
 mec-app/deploy/.venv/bin/python -m pip install -r mec-app/deploy/requirements.txt -r mec-app/deploy/requirements-simulation.txt
 ```
 
-终端 1，进入 `mec-app/deploy` 目录后启动 MEC：
+In terminal 1, enter `mec-app/deploy` and start MEC:
 
 ```bash
 cd mec-app/deploy
 .venv/bin/python -m rescuetwin.swarm_service
 ```
 
-终端 2，在项目根目录运行 Simulation：
+In terminal 2, run Simulation from the repository root:
 
 ```bash
 SWARM_MEC_URL=http://127.0.0.1:8780 mec-app/deploy/.venv/bin/python mec-app/deploy/tools/run_swarm.py --quick --no-anim
 ```
 
-终端 3，在 `mec-app/deploy` 目录启动 Dashboard：
+In terminal 3, start the dashboard from `mec-app/deploy`:
 
 ```bash
 .venv/bin/python -m rescuetwin.demo --config config.team.example.json --recorded-only
 ```
 
-## 分开在两台电脑运行
+## Running on two computers
 
-MEC 服务与 Simulation 需要网络互通。在 MEC 主机的 `mec-app/deploy` 目录运行：
+The MEC service and Simulation require network connectivity. Run this in `mec-app/deploy` on the MEC host:
 
 ```bash
-export SWARM_API_TOKEN="替换为自定口令"
+export SWARM_API_TOKEN="REPLACE_WITH_YOUR_TOKEN"
 .venv/bin/python -m rescuetwin.swarm_service --host 0.0.0.0
 ```
 
-允许 Simulation 电脑访问 MEC 主机的 8780 端口。在 Windows Simulation 电脑的项目根目录，用 PowerShell 设置：
+Allow the Simulation computer to access port 8780 on the MEC host. In PowerShell at the repository root on the Windows Simulation computer, set:
 
 ```powershell
-$env:SWARM_MEC_URL = "http://MEC主机的私网IP:8780"
-$env:SWARM_API_TOKEN = "与服务端相同的口令"
+$env:SWARM_MEC_URL = "http://MEC_PRIVATE_IP:8780"
+$env:SWARM_API_TOKEN = "REPLACE_WITH_THE_SAME_SERVER_TOKEN"
 powershell -ExecutionPolicy Bypass -File .\mec-app\deploy\start-demo.ps1 -Mode Swarm
 ```
 
-这些 HTTP 命令用于可信内网；通过公网连接时配置 HTTPS。
-容器部署使用 `compose.swarm.yaml`，Kubernetes 配置见 `k8s/swarm.yaml`；两者都需要填写实际部署参数。
+These HTTP commands target a trusted private network. Configure HTTPS for public-network access.
+Container deployment uses `compose.swarm.yaml`. Kubernetes configuration is in `k8s/swarm.yaml`. Both need actual deployment parameters.
 
-当前地图为 50×30，只有 A/B 两区和 drone-A/B。node-01 使用历史传感器记录，node-02 使用模拟数据。
-本机运行已验证，Ubuntu VM 部署仍需实测。
-
-
-## Swarm logic 实现位置与范围
-
-- simulation/rescue_sim.py：Sariel 的基础模型、局部信息素/蒸发、避障、感知和导出。原文件不改。
-- rescuetwin/swarm_service.py：独立 HTTP 服务，合并两架 drone 的局部地图/信息素，处理重复/过期报告。
-- rescuetwin/swarm_logic.py：本次补齐的协同控制器；按可探索格的信息增益与路径代价竞价，避免两架 drone 领取相近目标，并预约下一步位置，禁止同格和互换碰撞。目标仍有收益时优先保持，危险变化后重新规划。
-- tools/run_swarm.py：把服务分配接到原 Simulation 的适配器。启动器的 Swarm/SwarmHeadless 已使用这个入口；直接运行原 rescue_sim.py 仍是基础算法。
-
-先启动 SwarmService，再启动 Swarm/SwarmHeadless，原有两终端命令不变。HTTP /v1/reports 新增可选 position={x,y}；响应 coordination 包含 assignments、actions、bid、information_gain 和 path。旧地图融合客户端仍兼容；更新后的执行适配器要求新服务，缺少竞价策略会停止，不静默退回本地算法。
-
-信息素代表已探索历史，并按 tick 蒸发；危险图使用归一化仿真值，不能当作 mV 标定阈值。当前策略是探索任务的贪心竞价，不是全局最优求解器，也没有声称完成真实设备控制、CSE切换或 MEC021迁移。
-
-本轮测试：真实 HTTP 服务 + 双 drone 完整运行，seed=1，183步实现100%地图覆盖、发现2个目标，并逐步验证避墙、已知危险格和互撞。此结果只针对该仿真场景，不代表实物性能或多随机种子的性能结论。
-
-需要把输出放到独立目录时，在项目根目录调用 Python 适配器并加 --output-dir（不改变原输入文件）。默认启动器仍使用 simulation 中的两个输出 JSONL，Dashboard 可读取其回放。
-
-本轮验证还包含独立命令行 quick/no-anim 导出至临时目录、认证失败停止执行、重复报告稳定性与非法报告不改变任务状态。部署配置已更新为包含 swarm_logic.py；本次没有完成 Docker/Ubuntu/Kubernetes 实际部署，也未 commit/push。
+The current map is 50x30 with zones A/B and drone-A/B. node-01 uses historical sensor records and node-02 uses simulated data.
+Local execution was verified. Ubuntu VM deployment still requires testing.
 
 
-### 本轮实时验证与清理记录
+## Swarm logic implementation and scope
 
-- 6/8架实时Factory、动态尺寸/边界、独立HTTP Fusion、避碰、手动接管/恢复、Fusion故障暂停，以及原MQTT/CSE派单闭环通过。
-- 旧协议/记录/字段兼容回归34项通过；前端模型7项通过；最终LiveSwarm专项6项通过。浏览器确认8架运动、覆盖率增长、3D与探索层、8个控制选项及旧回放。
-- LiveSwarm 的本地任务/回执无需 Broker；画面不会把文件读数当作MQTT接收。
-- 队友15个原有文件校验值保持不变。未 commit/push；容器入口可导入，未把它说成已完成Docker/VM部署。
-- 正常 runtime 清理14个缓存目录；旧重复副本 RescueTwins/mec-app/deploy/runtime 中另有6个受Windows访问权限保护的历史pytest缓存，删除及takeown尝试均被系统拒绝，仍保留。需Windows管理员处理。数据库和联调报告未删。
+- simulation/rescue_sim.py: Sariel's base model, local pheromone/evaporation, obstacle avoidance, sensing and export. The original file is preserved.
+- rescuetwin/swarm_service.py: a separate HTTP service merging the local maps/pheromones of two drones and handling duplicate/stale reports.
+- rescuetwin/swarm_logic.py: the cooperative controller added in this round. It bids using information gain and route cost, avoids assigning nearby goals to both drones, and reserves the next positions to prevent same-cell and swap collisions. It retains useful goals and replans when hazards change.
+- tools/run_swarm.py: the adapter connecting service assignments to the original Simulation. The Swarm/SwarmHeadless launcher modes use it. Running the original rescue_sim.py directly still uses the base algorithm.
+
+Start SwarmService, then Swarm/SwarmHeadless using the same two-terminal workflow. HTTP /v1/reports accepts optional position={x,y}. The coordination response includes assignments, actions, bid, information_gain and path. Older map-fusion clients remain compatible. The updated execution adapter requires the new service and stops if the bidding policy is absent, without silently falling back to the local algorithm.
+
+Pheromones represent exploration history and evaporate per tick. The hazard map uses normalized simulation values, unsuitable as calibrated mV thresholds. The policy performs greedy exploration bidding. Global optimization, physical device control, CSE switching and MEC021 migration have not been established by this work.
+
+This round tested a complete two-drone run against a real HTTP service. With seed=1, it reached 100% map coverage in 183 steps and found two targets, checking wall avoidance, known hazards and inter-drone collisions at each step. These results apply to this simulation scenario, without establishing physical performance or multi-seed performance conclusions.
+
+For a separate output directory, invoke the Python adapter from the repository root with --output-dir, preserving the original inputs. The default launcher still uses the two JSONL outputs under simulation, which the dashboard can replay.
+
+Verification also covered standalone quick/no-anim exports to a temporary directory, stopping on authentication failure, duplicate-report stability and preserving mission state after invalid reports. Deployment configuration includes swarm_logic.py. Actual Docker/Ubuntu/Kubernetes deployment and commit/push were still pending at the time of this record.
 
 
-剩余旧缓存可在管理员 PowerShell 中、repo 根目录运行下面命令。脚本只处理 runtime 下的 pytest-*、npm-cache、relocation-temp，不包含数据库或报告：
+### Live verification and cleanup record
+
+- Live Factory with six/eight drones, dynamic dimensions/boundaries, separate HTTP Fusion, collision avoidance, manual takeover/resume, pause on Fusion errors and the existing MQTT/CSE dispatch loop passed.
+- Thirty-four legacy protocol/record/field compatibility tests, seven frontend model tests and six final LiveSwarm tests passed. Browser checks covered eight moving drones, increasing coverage, 3D/exploration layers, eight control options and earlier replay.
+- LiveSwarm local tasks/receipts require no broker. The interface distinguishes file readings from MQTT reception.
+- Checksums of fifteen existing teammate files were preserved. At the time of this record, changes had not been committed/pushed. Container entry points imported successfully, while Docker/VM deployment remained unverified.
+- Normal runtime cleanup removed fourteen cache directories. Six historical pytest caches in the older duplicate RescueTwins/mec-app/deploy/runtime remained protected by Windows permissions. Deletion and takeown attempts were denied, so those caches remain for a Windows administrator to handle. Databases and integration reports were retained.
+
+
+To handle the remaining old caches, run the following from the repository root in administrator PowerShell. The script targets pytest-*, npm-cache and relocation-temp under runtime, excluding databases and reports:
 
 ```powershell
 # Preview cache targets without changing files.

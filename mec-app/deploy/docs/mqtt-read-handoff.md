@@ -1,91 +1,91 @@
-# 通过 MQTT 读取 Zone A 温度
+# Read Zone A temperature through MQTT
 
-读取 CSE 中最新的一条温度记录，不上传或修改数据。需要能连接 Broker，不需要启动 Simulation、Dashboard 或 Sandbox。
+Read the latest CSE temperature record. This performs a read-only operation and requires broker connectivity, without starting Simulation, Dashboard or Sandbox.
 
-## 1. 安装依赖
+## 1. Install dependencies
 
-在项目的 `mec-app/deploy` 目录打开 PowerShell：
+Open PowerShell in the project's `mec-app/deploy` directory:
 
 ```powershell
 py -3.13 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-已有 `.venv` 时跳过第一条。
+Skip the first command if `.venv` already exists.
 
-## 2. 填写连接参数
+## 2. Enter connection parameters
 
-先复制配置文件，只需做一次：
+Copy the configuration file once:
 
 ```powershell
 Copy-Item config.mqtt-read.example.json config.mqtt-read.local.json
 ```
 
-用 VS Code 打开 **`mec-app/deploy/config.mqtt-read.local.json`**，填写：
+Open **`mec-app/deploy/config.mqtt-read.local.json`** in VS Code and fill in:
 
-| 字段 | 填什么 |
+| Field | Value |
 |---|---|
-| `host` | 当前能访问的 Broker IP 或域名，不带 `http://` |
-| `port` | Broker 端口，模板为 `1883`，按实际修改 |
-| `username` | 有读取权限的 MQTT 账号 |
-| `originator` | 该连接使用的 oneM2M 读取身份，不是 MQTT 账号名 |
-| `cse_id` | 目标 CSE ID，模板为 `id-mn-zone-a` |
-| `target` | 完整温度路径，模板为 `/id-mn-zone-a/mn-zone-a/node-01/temperature/la` |
-| `rvi` | CSE 支持的 oneM2M 版本，模板为 `4` |
-| `password_env` | 保持 `MEC_READ_MQTT_PASSWORD` 即可 |
-| `timeout_s` | 等待响应的秒数，默认 `10` |
+| `host` | Reachable broker IP or domain, without `http://` |
+| `port` | Broker port, `1883` in the template. Adjust for the actual broker. |
+| `username` | MQTT account with read access |
+| `originator` | oneM2M read identity for this connection, separate from the MQTT username |
+| `cse_id` | Target CSE ID, `id-mn-zone-a` in the template |
+| `target` | Full temperature path, `/id-mn-zone-a/mn-zone-a/node-01/temperature/la` in the template |
+| `rvi` | oneM2M release supported by the CSE, `4` in the template |
+| `password_env` | Keep `MEC_READ_MQTT_PASSWORD` |
+| `timeout_s` | Response timeout in seconds, default `10` |
 
-替换所有 `REPLACE_...` 占位内容。确认模板中的 CSE ID 和温度路径与服务器一致。
+Replace all `REPLACE_...` placeholders. Check the template's CSE ID and temperature path against the server.
 
-MQTT 账号需要能发布请求 topic、订阅响应 topic；Originator 需要有目标资源的读取权限。
-能上传数据的账号不一定有读取权限。
+The MQTT account needs request-topic publish and response-topic subscribe permissions. The Originator needs read access to the target resource.
+Upload permission alone does not guarantee read permission.
 
-程序根据 `originator` 和 `cse_id` 自动生成 topic，不用另填：
+The program generates topics from `originator` and `cse_id` automatically:
 
 ```text
 /oneM2M/req/<originator>/<cse_id>/json
 /oneM2M/resp/<originator>/<cse_id>/json
 ```
 
-这里的 `originator` 使用不含斜杠的身份。如果服务器使用其他 topic 格式，需要调整代码。
+Use an `originator` without slashes here. Adjust the code if the server uses a different topic format.
 
-## 3. 输入密码并读取
+## 3. Enter the password and read
 
-在同一个 PowerShell 终端输入密码，密码不会显示：
+Enter the password in the same PowerShell terminal. Input is hidden:
 
 ```powershell
 $brokerPassword = Read-Host 'Broker password' -AsSecureString
 $env:MEC_READ_MQTT_PASSWORD = [System.Net.NetworkCredential]::new('', $brokerPassword).Password
 ```
 
-先检查配置，这一步不会连接 Broker：
+First validate the configuration. This step does not connect to the broker:
 
 ```powershell
 .\.venv\Scripts\python.exe -m rescuetwin.native_read --config config.mqtt-read.local.json
 ```
 
-再读取一条记录：
+Then read one record:
 
 ```powershell
 .\.venv\Scripts\python.exe -m rescuetwin.native_read --config config.mqtt-read.local.json --read
 ```
 
-## 4. 查看结果
+## 4. Inspect the result
 
-终端显示结果，同时保存到 **`mec-app/deploy/runtime/mqtt-read-latest.json`**。
+The result appears in the terminal and is saved to **`mec-app/deploy/runtime/mqtt-read-latest.json`**.
 
-- `complete: true`、`rsc: 2000`：读取成功。
-- `content`：读取到的数据。
-- `cin`：CSE 返回的原始记录。
-- `detail`：失败原因。
+- `complete: true`, `rsc: 2000`: successful read.
+- `content`: returned data.
+- `cin`: original record returned by the CSE.
+- `detail`: failure reason.
 
-只检查配置时 `complete` 为 `false`，这是正常的。每次运行会覆盖结果文件。
-最新记录可能是旧数据，采样时间要看记录本身，`received_at` 只是本次接收时间。
-读取结果目前不会自动显示到 Dashboard。
+A configuration-only check returns `complete: false`, as expected. Each run overwrites the result file.
+The latest stored record may be old. Read its sampling timestamp. `received_at` records the current retrieval time.
+Read results are not currently displayed automatically in the dashboard.
 
-## Ubuntu 命令
+## Ubuntu commands
 
-在 `mec-app/deploy` 目录运行，需要 Python 3.13 和 venv：
+Run from `mec-app/deploy`, with Python 3.13 and venv installed:
 
 ```bash
 python3.13 -m venv .venv
@@ -93,7 +93,7 @@ python3.13 -m venv .venv
 cp config.mqtt-read.example.json config.mqtt-read.local.json
 ```
 
-按上表编辑本地配置后运行：
+After editing the local configuration using the table above, run:
 
 ```bash
 read -r -s -p 'Broker password: ' MEC_READ_MQTT_PASSWORD
@@ -102,19 +102,19 @@ export MEC_READ_MQTT_PASSWORD
 .venv/bin/python -m rescuetwin.native_read --config config.mqtt-read.local.json --read
 ```
 
-已有环境或本地配置时跳过对应创建步骤。
+Skip creation steps for environments or local configurations that already exist.
 
-## 常见错误
+## Common errors
 
-| 情况 | 检查内容 |
+| Symptom | Check |
 |---|---|
-| 连接超时或拒绝连接 | Broker 地址、端口、监听、防火墙、校园网或 VPN |
-| 连接未被接受 | MQTT 账号、密码和 TLS 设置 |
-| 订阅被拒绝 | 响应 topic 的订阅权限 |
-| CSE 响应超时 | 请求 topic 的发布权限、CSE 的 MQTT 连接、响应 topic、`rvi` |
-| `rsc=4103` | Originator 的读取权限（ACP） |
-| `rsc=4004` | 资源路径是否正确、是否已有温度记录 |
+| Connection timeout or refusal | Broker address, port, listener, firewall, campus network or VPN |
+| Connection rejected | MQTT account, password and TLS settings |
+| Subscription rejected | Subscribe permission for the response topic |
+| CSE response timeout | Request-topic publish permission, CSE MQTT connection, response topic and `rvi` |
+| `rsc=4103` | Originator read permission (ACP) |
+| `rsc=4004` | Resource path and availability of a temperature record |
 
-Broker 要求 TLS 时，在本地配置添加 `ca_file` 并修改端口；要求客户端证书时再添加 `cert_file`、`key_file`。
+If the broker requires TLS, add `ca_file` to the local configuration and update the port. Add `cert_file` and `key_file` if client certificates are required.
 
-密码不要写进 JSON。本地配置 `config.*.local.json` 和运行结果 `runtime/` 已被 Git 忽略。
+Keep passwords out of JSON. Git ignores local `config.*.local.json` files and `runtime/` results.

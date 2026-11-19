@@ -1,32 +1,32 @@
-> 2026-11-11 当前版本已改为 50×30、A/B 两区、drone-A/B，并增加独立 MEC swarm-fusion 服务。当前启动与部署以 [README_RUN.md](../README_RUN.md) 为准；下文早期三分区说明保留为历史记录。
+> On 2026-11-11, the version changed to a 50x30 map, zones A/B and drone-A/B, with a separate MEC swarm-fusion service. Follow [README_RUN.md](../README_RUN.md) for current startup and deployment instructions. The earlier three-zone instructions below are retained as historical notes.
 
-# 团队协作与联调
+# Team collaboration and integration
 
-团队仓库：`https://github.com/Riel-3288/RescueTwins`。
-本模块路径：`mec-app/deploy/`，功能分支：`feature/mqtt-mec-integration`。
+Team repository: `https://github.com/Riel-3288/RescueTwins`.
+Module path: `mec-app/deploy/`. Feature branch: `feature/mqtt-mec-integration`.
 
-## 获取代码
+## Get the code
 
-在尚未合并 PR 时，队友可以先在自己的 clone 检查功能分支：
+Before the PR is merged, teammates can inspect the feature branch in their own clones:
 
 ```powershell
 git fetch origin
 git switch --track origin/feature/mqtt-mec-integration
 ```
 
-如果该分支已经存在于本地，使用 `git switch feature/mqtt-mec-integration`。
-合并后，在各自没有未提交改动的工作区更新主分支：
+If the branch already exists locally, use `git switch feature/mqtt-mec-integration`.
+After merging, update main in a working tree with no uncommitted changes:
 
 ```powershell
 git switch main
 git pull --ff-only origin main
 ```
 
-分支切换前保留各自的未提交工作。后续开发从更新后的 main 创建自己的分支，经 PR 合并。
+Preserve your uncommitted work before switching branches. Create subsequent branches from the updated main and merge through PRs.
 
-## 运行模块
+## Run the module
 
-以下从仓库根目录开始，使用 Python 3.13：
+Start at the repository root with Python 3.13:
 
 ```powershell
 cd mec-app/deploy
@@ -35,101 +35,101 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-首次运行本地演示，按 [Simulator + MQTTX 指南](simulator-mqttx-guide.md) 执行 start-demo.ps1，无需 Docker。
-使用容器或共享环境时，按[部署指南](deployment-guide.md)操作。
-新目录中的 `.gitignore` 和 `.dockerignore` 排除了虚拟环境、运行数据、私钥、tokens 和本地配置。
+For the first local demo, run start-demo.ps1 following the [Simulator + MQTTX guide](simulator-mqttx-guide.md). Docker is optional for this workflow.
+For containers or a shared environment, follow the [deployment guide](deployment-guide.md).
+The new directory's `.gitignore` and `.dockerignore` exclude virtual environments, runtime data, private keys, tokens and local configuration.
 
-## 交给队友的接口（团队当前链路）
+## Interface handoff for the current team integration
 
-| 部分 | 所需信息 | 当前接口 |
+| Component | Required information | Current interface |
 |---|---|---|
-| 硬件 | Broker 地址、账号密码、Originator、目标 CSE、容器路径 | oneM2M MQTT binding，先订阅响应再发布请求；八字段读数序列化到 m2m:cin.con，等待匹配 rqi 与 rsc=2001 |
-| CSE | A/B/IN URL、实际注册 aei、认证与 ACP | 团队上传直接走 oneM2M MQTT；HTTP 用于已有跨 CSE 只读检查，不需要额外 bridge |
-| Swarm / twin | CSE 资源路径、事件 schema、更新或订阅方式 | IPE 的 `mec-ipe/location`、`rnis`、`requests`、`responses`、`handover`；agent 的 `position` |
-| MEC | 用户自己的 API base、UE address、应用 instance ID | MEC013 Location、MEC012 RNIS、MEC011 confirm_ready |
+| Hardware | Broker address, credentials, Originator, target CSE and container paths | oneM2M MQTT binding. Subscribe to responses before publishing requests. Serialize the eight-field reading into m2m:cin.con and wait for a matching rqi and rsc=2001. |
+| CSE | A/B/IN URLs, actual registered aei, authentication and ACPs | Team uploads use oneM2M MQTT directly. HTTP supports the existing read-only cross-CSE checks, with no extra bridge required. |
+| Swarm / twin | CSE resource paths, event schema, update or subscription method | IPE resources `mec-ipe/location`, `rnis`, `requests`, `responses`, `handover`, and agent `position` |
+| MEC | Personal API base, UE address and application instance ID | MEC013 Location, MEC012 RNIS and MEC011 confirm_ready |
 
-CSE 正式配置继续由 `cse-config/` 的维护者负责。本模块的 `tools/acme_config.py` 只提供独立测试/部署示例。
-先验证 oneM2M MQTT→MN-A→响应/读回及 Mobius 跨 CSE 读取，再接独立 drone AE 与 MEC 位置，最后验收 MN-B/迁移。旧普通 topic 示例仅用于隔离的 LocalDemo/LocalCse。
+The maintainer of `cse-config/` remains responsible for the team's deployed CSE configuration. This module's `tools/acme_config.py` supplies separate testing/deployment examples.
+Verify oneM2M MQTT to MN-A, responses/read-back and Mobius cross-CSE reads first. Then integrate independent drone AEs and MEC positions, followed by MN-B/migration acceptance. Legacy plain-topic examples are limited to isolated LocalDemo/LocalCse runs.
 
-## 当前验证边界
+## Current verification scope
 
-测试包含真实 MQTT 与 ACME CSE、Mcc 转发、HTTPS 和 MQTT client certificate 验证。
-自动回归中的 MEC REST 输入来自本地测试服务；另已只读验证真实 Hosted Location/RNIS/MEC011。shared VM 部署、Mosquitto ACL、独立应用接入、ACME–Mobius
-互操作、MEC021 context transfer 和完整订阅迁移仍需各自环境的验收证据。
+Tests cover real MQTT and ACME CSEs, Mcc forwarding, HTTPS and MQTT client certificate validation.
+MEC REST inputs in automated regressions come from local test services. Real Hosted Location/RNIS/MEC011 endpoints were also checked read-only. Shared VM deployment, Mosquitto ACLs, independent application integration and ACME-Mobius
+interoperability, MEC021 context transfer and full subscription migration still require acceptance evidence from their respective environments.
 
 
-## 2026-11-10 Selina 交接
+## 2026-11-10 Selina handoff
 
-当前仓库 origin 是 https://github.com/Riel-3288/RescueTwins.git，分支 feature/mqtt-mec-integration，已提交基线 9300fc5。本次 mV、drone 回放、统一启动入口和 native-import 更新仍是本地改动，没有 push。组员只 git pull 不会拿到这批更新；请使用本次交接 ZIP 覆盖到各自仓库根目录，或等这些改动正式提交后再拉取。ZIP 内不含密码、虚拟环境和运行数据库。
+At the time of this handoff, origin was https://github.com/Riel-3288/RescueTwins.git on feature/mqtt-mec-integration, with committed baseline 9300fc5. The mV, drone replay, unified launcher and native-import updates were still local and unpushed. A git pull alone would not retrieve them. Use the handoff ZIP at the repository root, or pull after the changes are committed. The ZIP excludes passwords, virtual environments and runtime databases.
 
-### 文件位置和依赖
+### File locations and dependencies
 
-- Sariel 原始仿真：simulation/rescue_sim.py；输入 node01_sample.jsonl，输出 sim_sensor_data.jsonl 和 sim_agent_log.jsonl。源码、输入和原有输出在本次修改中保持不变。
-- Selina 回放/规划：mec-app/deploy/rescuetwin/recordings.py；页面在 dashboard；直接 MQTT 文件上传在 rescuetwin/native.py；团队配置是 config.team.example.json。
-- Python 3.13。回放依赖 requirements.txt；原仿真依赖 requirements-simulation.txt（numpy、matplotlib）；旧本地 CSE 演示依赖 requirements-demo.txt（另外包含 aMQTT、ACME）。已生成网页 app.js，无需组员安装 Node 来启动。
+- Sariel's original simulation: simulation/rescue_sim.py, reading node01_sample.jsonl and exporting sim_sensor_data.jsonl and sim_agent_log.jsonl. This round preserved the source, inputs and existing outputs.
+- Selina's replay/planning: mec-app/deploy/rescuetwin/recordings.py. Pages are under dashboard, direct MQTT file uploads under rescuetwin/native.py, and team configuration in config.team.example.json.
+- Python 3.13. Replay uses requirements.txt, the original simulation uses requirements-simulation.txt (numpy, matplotlib), and the legacy local CSE demo uses requirements-demo.txt (also including aMQTT and ACME). The generated web app.js is included, so teammates can start without installing Node.js.
 
-### 启动方法
+### Startup
 
-在项目根目录打开 PowerShell：
+Open PowerShell at the repository root:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\mec-app\deploy\start-demo.ps1 -Mode Recorded
 ```
 
-打开 http://127.0.0.1:8765/#recorded。默认读取现有 sensor/agent 日志，也支持上传新文件、时间轴、drone 侦察/巡逻、避障、简化电量/返航及 JSON 导出。不需要连团队电脑、Broker 或 VM。
+Open http://127.0.0.1:8765/#recorded. It reads existing sensor/agent logs and supports uploads, a timeline, drone inspection/patrol, obstacle avoidance, simplified energy/return-home checks and JSON export. Team-computer, broker and VM connections are unnecessary for this mode.
 
-要重新运行 Sariel 的三架 drone random/swarm 基准并输出 JSONL：
+To rerun Sariel's three-drone random/swarm benchmark and export JSONL:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\mec-app\deploy\start-demo.ps1 -Mode SwarmHeadless
 ```
 
-要在基准和 JSONL 导出之后显示二维动画，将参数换成 `-Mode Swarm`。脚本原始入口为 `python simulation/rescue_sim.py --no-anim` 或不带 `--no-anim`；文件开头旧注释写的 rescuetwin_sim.py 并非实际文件名。
+To display a 2D animation after benchmarking and JSONL export, use `-Mode Swarm`. The original script entry point is `python simulation/rescue_sim.py --no-anim`, or omit `--no-anim` for animation. The older rescuetwin_sim.py name in the file header is outdated.
 
-要演示旧四个 factory agent，使用 `-Mode LocalDemo`；要同时启动隔离的本地 ACME A/B/IN，使用 `-Mode LocalCse`。这些是旧独立示例，不是团队 Mobius/oneM2M MQTT 接入的证明。
+Use `-Mode LocalDemo` for the legacy four-agent factory demo, or `-Mode LocalCse` to also start isolated local ACME A/B/IN instances. These historical standalone examples provide no evidence of connectivity to the team's Mobius/oneM2M MQTT setup.
 
-### Robot 和 drone 的支持范围
+### Robot and drone support
 
-Sariel 当前代码实例化 drone-A/B/C，并没有单独的地面 robot 类或机器人命令接收器。Recorded Mission 已适配这三架 drone 的日志。它导出的 robot_task_suggestions 是任务建议，不是已执行回执。地面 robot 还需要统一坐标、agent ID、接收任务及反馈接口；不能把页面里有 agent 就当作 robot/drone 两类都已接好。
+Sariel's code currently instantiates drone-A/B/C and has no separate ground-robot class or robot command receiver. Recorded Mission supports logs from these three drones. Its robot_task_suggestions are proposed tasks, with execution unconfirmed. Ground robots still need agreed coordinates, agent IDs, task reception and feedback interfaces. Showing agents in the interface does not establish integration of both robots and drones.
 
-### mV 字段与文件检查
+### mV fields and file checks
 
-smoke_raw、co_raw 均使用非负有限 mV 数值，支持小数，不再使用 ADC 计数的 0..4095 整数限制。temperature/degC、humidity/percent、pressure/hPa、presence/boolean 保持各自单位。更新只修改 Selina 模块，原始数据的 value/source/observed_at 不重写。
+smoke_raw and co_raw use finite, nonnegative mV values, including decimals, replacing the 0..4095 integer ADC-count restriction. temperature/degC, humidity/percent, pressure/hPa and presence/boolean retain their units. This update changes only Selina's module and preserves original value/source/observed_at fields.
 
-当前 sample_data.json 25 条中 24 条符合格式，1 条缺时间；node01_sample.jsonl 216 条均符合格式；sim_sensor_data.jsonl 的 A/B 178 条符合格式，C 区 89 条仍无 CSE 映射。符合格式不等于已授权写入。mV 的火情阈值仍需团队确认；旧 local factory 的数字只作为示例阈值。
+Of 25 sample_data.json records, 24 match the contract and one lacks a timestamp. All 216 node01_sample.jsonl records match. sim_sensor_data.jsonl has 178 compatible A/B records and 89 zone-C records with no CSE mapping. Format compatibility alone does not authorize writes. The team still needs to confirm mV hazard thresholds. Older local-factory thresholds are illustrative.
 
-### 团队 oneM2M MQTT binding
+### Team oneM2M MQTT binding
 
-Broker 10.70.80.245:1883，当前无 TLS；node-01 账号的密码私下配置。MQTT username=node-01，AE originator=CNode01，目标 /id-mn-zone-a，三者不混用。每个连接自动生成唯一 Client ID。
+Broker 10.70.80.245:1883 currently has TLS disabled. Configure the node-01 password privately. MQTT username=node-01, AE originator=CNode01 and target=/id-mn-zone-a are separate parameters. Each connection generates a unique Client ID automatically.
 
-- 先订阅 /oneM2M/resp/CNode01/id-mn-zone-a/json，收到 SUBACK 后再发请求。
-- 请求发布到 /oneM2M/req/CNode01/id-mn-zone-a/json。
-- 每次请求生成新 rqi；con 是序列化后的八字段 JSON 字符串；不改成普通 rescuetwin topic。
-- 匹配 rqi 且 rsc=2001 才记录创建成功。Broker PUBACK 不等于 CSE 成功。
+- Subscribe to /oneM2M/resp/CNode01/id-mn-zone-a/json first and wait for SUBACK before sending requests.
+- Publish requests to /oneM2M/req/CNode01/id-mn-zone-a/json.
+- Generate a new rqi for each request. con contains the serialized eight-field JSON string. Keep the oneM2M topic format.
+- Record a successful create only when rqi matches and rsc=2001. Broker PUBACK alone does not confirm CSE success.
 
-先在 mec-app/deploy 目录预览文件，默认不发送：
+Preview the file from mec-app/deploy first. Sending is disabled by default:
 
 ```powershell
 .\.venv\Scripts\python.exe -m rescuetwin --config config.team.example.json native-import --zone A --file ..\..\simulation\node01_sample.jsonl
 ```
 
-需要上传时，在自己的终端私下设置 TEAM_NODE01_MQTT_PASSWORD，再在同一命令追加 `--send`。只允许该账号绑定的 node-01/A 传感器数据；独立 drone/MEC 身份不能冒用 CNode01。任一格式错误默认阻止整批；显式 `--skip-invalid` 才跳过不合格行。日志记录部分成功；再次 --send 会创建新 CIN，不声称全局去重。
+To upload, set TEAM_NODE01_MQTT_PASSWORD privately in your terminal and append `--send` to the same command. Only node-01/A sensor data bound to that account is allowed. Independent drone/MEC identities need their own authorized identities. A format error blocks the entire batch by default. Explicit `--skip-invalid` skips incompatible rows. Logs capture partial success. Repeating --send creates new CINs, with no global deduplication guarantee.
 
-### MEC 平台和 API
+### MEC platform and APIs
 
-Hosted 页面：https://82.112.253.59/ 。当前个人 Sandbox=sbx42843tk，MEP=mep1。2026-11-10 只读验证下表接口均返回成功；Hosted 运行不代表已经有 shared VM 的 SSH/Kubernetes 权限，目前没有可用 shared VM 凭据。
+Hosted page: https://82.112.253.59/ . Current personal Sandbox=sbx42843tk, MEP=mep1. Read-only checks on 2026-11-10 succeeded for the endpoints below. Hosted access provides no shared-VM SSH/Kubernetes authorization, and no shared-VM credentials were available.
 
-| 用途 | 请求地址 | 当前用途 |
+| Purpose | Request URL | Current use |
 |---|---|---|
-| MEC013 Location | GET https://82.112.253.59/sbx42843tk/mep1/location/v3/queries/users | 获取 UE 位置；支持 ?address=10.10.0.1 |
-| MEC012 RNIS | GET https://82.112.253.59/sbx42843tk/mep1/rni/v2/queries/rab_info | 获取 UE/cell/RAB 信息 |
-| MEC011 时间 | GET https://82.112.253.59/sbx42843tk/mep1/mec_app_support/v2/timing/current_time | 健康检查 |
-| MEC011 服务发现 | GET https://82.112.253.59/sbx42843tk/mep1/mec_service_mgmt/v1/services | 获取真实服务版本及 endpoint |
-| MEC021 AMS | https://82.112.253.59/sbx42843tk/mep1/amsi/v1 | 服务发现已公布；应用注册/迁移尚未验收 |
+| MEC013 Location | GET https://82.112.253.59/sbx42843tk/mep1/location/v3/queries/users | Retrieve UE positions. Supports ?address=10.10.0.1 |
+| MEC012 RNIS | GET https://82.112.253.59/sbx42843tk/mep1/rni/v2/queries/rab_info | Retrieve UE/cell/RAB information |
+| MEC011 timing | GET https://82.112.253.59/sbx42843tk/mep1/mec_app_support/v2/timing/current_time | Health check |
+| MEC011 service discovery | GET https://82.112.253.59/sbx42843tk/mep1/mec_service_mgmt/v1/services | Retrieve actual service versions and endpoints |
+| MEC021 AMS | https://82.112.253.59/sbx42843tk/mep1/amsi/v1 | Advertised by service discovery. Application registration/migration acceptance remains pending. |
 
-Location 的旧 v2 Try-it 地址此前返回404，以 v3 和服务发现公布的 endpoint 为准。接口请求当前使用 Accept: application/json，保持 HTTPS 证书验证；本次测试没有使用 Bearer token，也不推断其他平台无需认证。
+The old Location v2 Try-it URL returned 404. Use v3 and the endpoints advertised by service discovery. Requests currently send Accept: application/json with HTTPS certificate validation enabled. These checks used no Bearer token, without making assumptions about authentication on other platforms.
 
-请求示例：
+Example request:
 
 ```http
 GET /sbx42843tk/mep1/location/v3/queries/users?address=10.10.0.1 HTTP/1.1
@@ -137,7 +137,7 @@ Host: 82.112.253.59
 Accept: application/json
 ```
 
-以下是本次实际列表响应中的第一条 UE，删去其他 UE 和附加字段，保留其值；这是抓取样例，不是固定坐标：
+The first UE from the actual list response is shown below. Other UEs and extra fields were omitted while preserving these values. This is a captured sample with time-dependent coordinates:
 
 ```json
 {
@@ -166,7 +166,7 @@ Accept: application/json
 }
 ```
 
-RNIS 响应节选：
+RNIS response excerpt:
 
 ```json
 {
@@ -222,28 +222,28 @@ RNIS 响应节选：
 }
 ```
 
-Location provider appInstanceId=298b2c0c-7efa-45d3-8b47-8ab3c009b845；serviceId=f8a0d2ab-9977-4d71-8c4f-354b4d59fb32。前者属于服务提供者，不是 RescueTwins consumer 应用 ID。UE 地址与 drone ID 尚未映射，Monaco 经纬度也不能直接当 simulation 网格坐标。回放功能目前不依赖 MEC 网络位置来执行路线。
+Location provider appInstanceId=298b2c0c-7efa-45d3-8b47-8ab3c009b845, serviceId=f8a0d2ab-9977-4d71-8c4f-354b4d59fb32. The former identifies the service provider. The RescueTwins consumer needs its own application ID. UE addresses and drone IDs had not yet been mapped at this stage. Monaco latitude/longitude requires transformation before use as grid coordinates. Replay currently executes routes independently of MEC network positions.
 
-### 仍未完成的联调
+### Pending integration
 
-从 Selina 电脑经 Mobius 读取两个 MN 仍超时；需 Zihan 确认当前 IP、网络、防火墙和监听地址。MQTT 密码未提供给运行环境，未向团队服务器做真实上传。独立 drone/MEC AE/ACP、C 区接入、mV 危险阈值、UE/坐标映射、robot 执行反馈、MEC021 自己的应用实例/回调/目标端，以及 shared VM/Kubernetes 实际部署都仍待完成。
-
-
-非 Windows 环境可在 mec-app/deploy 创建 Python 3.13 虚拟环境，安装 requirements.txt 后运行 `python -m rescuetwin.demo --config config.team.example.json --recorded-only`。要运行原仿真，另安装 requirements-simulation.txt，然后运行项目根目录的 `python simulation/rescue_sim.py --no-anim`；不带该参数需要可用图形桌面。
+Reads of both MNs through Mobius still timed out from Selina's computer. Zihan needs to confirm the current IP, routing, firewall and listen address. The runtime lacked an MQTT password and had made no real uploads to team servers. Independent drone/MEC AEs/ACPs, zone C access, mV hazard thresholds, UE/coordinate mapping, robot execution feedback, the application's MEC021 instance/callback/target, and actual shared-VM/Kubernetes deployment remained pending.
 
 
-## 2026-11-11 本地映射与 robot 更新
+On other operating systems, create a Python 3.13 environment in mec-app/deploy, install requirements.txt and run `python -m rescuetwin.demo --config config.team.example.json --recorded-only`. To run the original simulation, also install requirements-simulation.txt and run `python simulation/rescue_sim.py --no-anim` from the repository root. Omitting that flag requires a graphical desktop.
 
-演示 UE 映射：drone-A=10.10.0.1、drone-B=10.1.0.1、drone-C=10.100.0.1，见 config.team.example.json 的 mec_recorded_mapping。这是演示约定，不证明与实体无人机的对应关系。
 
-Recorded Mission 的 Read MEC positions 读取 Location 并投影到 30×20 网格；演示边界 south=43.7314、north=43.7514、west=7.4202、east=7.4402，X 向东、Y 向南，越界拒绝。这是未现场标定的线性投影，不改变历史轨迹或 CSE 路由，不用于自动派发。投影结果可能落在仿真墙体上；真实场地需地图控制点校准。
+## 2026-11-11 local mapping and robot updates
 
-C 区来自 Sariel 的 simulation/rescue_sim.py 第22、44、46行等。当前 CSE 仅 MN-A/B；保留 C 本地仿真，simulation_cse_routing.C=null，不自动把 C 改成 B。
+Demo UE mapping: drone-A=10.10.0.1, drone-B=10.1.0.1, drone-C=10.100.0.1. See mec_recorded_mapping in config.team.example.json. This demo convention has no verified correspondence to physical drones.
 
-Robot Task Suggestions 新增 Simulate local robot：本地 robot-01 检查路径，产生 accepted/moving/completed 回执及路线。没有发送硬件指令，也没有修改 Sariel 的执行器。反馈入口 POST /api/control，action=robot_feedback，feedback 对象含 task_id、command_id、robot_id、executor=local_robot_simulation、递增 sequence、status 和 position。拒绝错误身份、过期/冲突回执和错误完成位置。切换回放、上传或重启取消未完成任务。本服务仅 loopback，不是外网回调。
+Recorded Mission's Read MEC positions reads Location and projects it onto a 30x20 grid. Demo bounds are south=43.7314, north=43.7514, west=7.4202, east=7.4402, with X east and Y south. Out-of-bounds positions are rejected. The linear projection lacks site calibration and preserves historical trajectories/CSE routing. It is excluded from automatic dispatch. Projected positions can fall inside simulated walls. A real site needs map control-point calibration.
 
-27 项坐标/回执/原回放测试通过。浏览器确认本地 robot 完成回执；2026-11-11 最新真实 Location GET 返回404（此前曾200），需在个人 Sandbox 检查运行场景和 Try-it 地址。演示配置可保留，服务恢复后再读取；不能声称实时网络位置已连通。
+Zone C comes from Sariel's simulation/rescue_sim.py, including lines 22, 44 and 46. Only MN-A/B are currently available. Zone C remains in the local simulation with simulation_cse_routing.C=null, without silently mapping it to B.
 
-当前文件回放和 Hosted API 联调不需要 VM。Docker Desktop 可验证自己的容器和本地 Kubernetes，不能直接视为完整 ETSI MEC 平台。若需要平台管理/底层网络仿真，可按 STF_685 部署在可管理 Ubuntu 实体机或 VM；shared VM 只在选用该部署目标或验收明确要求时才必需。
+Robot Task Suggestions adds Simulate local robot. Local robot-01 validates routes and generates accepted/moving/completed feedback and a route. It sends no hardware commands and preserves Sariel's executor. Feedback uses POST /api/control, action=robot_feedback. The feedback object includes task_id, command_id, robot_id, executor=local_robot_simulation, increasing sequence, status and position. Incorrect identities, stale/conflicting receipts and incorrect completion positions are rejected. Replay changes, uploads and restarts cancel unfinished tasks. The service binds to loopback only.
 
-Zihan 排查顺序：确认有线 IP；检查 8001/8002/7599/1883 是否监听可达网卡而不是只有127.0.0.1；用自己LAN IP执行带oneM2M头的GET；检查限定来源的入站防火墙；双方确认同网络可路由或VPN。先 Test-NetConnection 证明 TCP 可达，再查 Originator/ACP，不用改 ACP 解决连接超时。
+Twenty-seven coordinate/feedback/original-replay tests passed. Browser checks confirmed local robot completion feedback. The latest real Location GET on 2026-11-11 returned 404 after earlier 200 responses. Check the personal Sandbox's active scenario and Try-it URL. Retain the demo configuration and retry when the service recovers. Live network-position integration remains unverified.
+
+File replay and Hosted API integration currently need no VM. Docker Desktop can verify application containers and local Kubernetes manifests. Full ETSI MEC platform administration is a separate deployment. If platform management or underlying network emulation is needed, follow STF_685 on an administrable Ubuntu machine or VM. A shared VM is required only when selected as the deployment target or explicitly required for acceptance.
+
+Zihan's troubleshooting order: confirm the wired IP, check that 8001/8002/7599/1883 listen on a reachable interface, perform a GET with oneM2M headers against the laptop's LAN IP, check source-limited inbound firewall rules, and confirm routable connectivity or VPN between both computers. Establish TCP reachability with Test-NetConnection before inspecting Originator/ACP permissions. ACP changes cannot fix a TCP timeout.
