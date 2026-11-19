@@ -1,7 +1,7 @@
 const sensors = [
   ['temperature','Temperature','°C','♧'], ['humidity','Humidity','%','◒'],
   ['pressure','Pressure','hPa','≋'], ['presence','Presence','','◈'],
-  ['smoke_raw','MQ-2 raw','ADC','⌁'], ['co_raw','MQ-7 raw','ADC','⌁']
+  ['smoke_raw','MQ-2 raw','','⌁'], ['co_raw','MQ-7 raw','','⌁']
 ];
 const $ = id => document.getElementById(id);
 let latest = new Map(), busy = false;
@@ -32,6 +32,9 @@ function render(data) {
     if(r.source==='simulation'&&r.state==='valid')label='Simulated'+(r.stale?' · Historical':'');
     badge.textContent=label; badge.className='badge '+(r.state==='valid'&&r.stale?'':r.state);
     card.querySelector('.value').textContent=r.state==='valid' ? (key==='presence'?(r.value?'Detected':'Not detected'):Number(r.value).toLocaleString('en-GB',{maximumFractionDigits:2})) : '—';
+    if (key === 'smoke_raw' || key === 'co_raw') {
+      card.querySelector('.unit').textContent = r.state === 'valid' ? (r.unit === 'adc' ? 'ADC' : r.unit) : '';
+    }
     if(key==='presence')card.querySelector('.value').style.fontSize='23px';
     card.querySelector('.timestamp').textContent=r.received_at?'Received '+timeLabel(r.received_at):(r.state==='empty'?'No uploads yet':'Waiting for a valid record');
     const msg=card.querySelector('.error-message');

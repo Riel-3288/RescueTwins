@@ -1,0 +1,101 @@
+{
+  "run_id": "28bcbc03c94642c5b18d7acd715cc626",
+  "started_at": "2026-11-07T07:45:35.132731+00:00",
+  "scope": "isolated ACME MN to ACME IN; not Mobius",
+  "source": "http://127.0.0.1:8011/~/id-annc-lab-mn/annc-lab-mn",
+  "target": "http://127.0.0.1:8010/~/id-annc-lab-in/annc-lab-in",
+  "result": "passed",
+  "checks": [
+    {
+      "check": "Isolated ACME MN registered with isolated ACME IN",
+      "result": "passed"
+    },
+    {
+      "check": "Container announced as type 10003 and discovered by label on IN",
+      "result": "passed"
+    },
+    {
+      "check": "Updating source labels synchronized the announced attributes on IN",
+      "result": "passed"
+    },
+    {
+      "check": "Explicitly announced map-summary record 1 discovered and read on IN (type 10004)",
+      "result": "passed"
+    },
+    {
+      "check": "Explicitly announced map-summary record 2 discovered and read on IN (type 10004)",
+      "result": "passed"
+    }
+  ],
+  "evidence": {
+    "container_before": {
+      "uri": "annc-lab-in/acme.example.com_annc-lab-mn/cntA_T2sYUGkFeN",
+      "resource": {
+        "et": "20311106T074535,709945",
+        "lnk": "/id-annc-lab-mn/cntudV9A3sdt1",
+        "lbl": [
+          "annc-test-28bcbc03c946",
+          "phase-1"
+        ],
+        "pi": "cbAlM77a3PwBF",
+        "ri": "cntAAjP0QV3tJ8",
+        "rn": "cntA_T2sYUGkFeN",
+        "ty": 10003,
+        "ct": "20261107T074535,926745",
+        "lt": "20261107T074535,926745"
+      }
+    },
+    "container_after": {
+      "uri": "annc-lab-in/acme.example.com_annc-lab-mn/cntA_T2sYUGkFeN",
+      "resource": {
+        "et": "20311106T074535,709945",
+        "lnk": "/id-annc-lab-mn/cntudV9A3sdt1",
+        "lbl": [
+          "annc-test-28bcbc03c946",
+          "phase-2"
+        ],
+        "pi": "cbAlM77a3PwBF",
+        "ri": "cntAAjP0QV3tJ8",
+        "rn": "cntA_T2sYUGkFeN",
+        "ty": 10003,
+        "ct": "20261107T074535,926745",
+        "lt": "20261107T074536,100446"
+      }
+    },
+    "record_phase_1": {
+      "uri": "annc-lab-in/acme.example.com_annc-lab-mn/cntA_T2sYUGkFeN/cinA_dGlqi2Ucld",
+      "resource": {
+        "et": "20311106T074535,709945",
+        "lnk": "/id-annc-lab-mn/cinKrtF5gJ7pq",
+        "lbl": [
+          "annc-test-28bcbc03c946"
+        ],
+        "con": "{\"source\": \"simulation\", \"run_id\": \"28bcbc03c94642c5b18d7acd715cc626\", \"phase\": 1, \"zone_id\": \"lab\", \"map_summary\": {\"hazard_cells\": 1}}",
+        "pi": "cntAAjP0QV3tJ8",
+        "ri": "cinA75oF4CJSHi",
+        "rn": "cinA_dGlqi2Ucld",
+        "ty": 10004,
+        "ct": "20261107T074536,146223",
+        "lt": "20261107T074536,146223"
+      }
+    },
+    "record_phase_2": {
+      "uri": "annc-lab-in/acme.example.com_annc-lab-mn/cntA_T2sYUGkFeN/cinA_m8jAsS8jdu",
+      "resource": {
+        "et": "20311106T074535,709945",
+        "lnk": "/id-annc-lab-mn/cinqSLZnPquUT",
+        "lbl": [
+          "annc-test-28bcbc03c946"
+        ],
+        "con": "{\"source\": \"simulation\", \"run_id\": \"28bcbc03c94642c5b18d7acd715cc626\", \"phase\": 2, \"zone_id\": \"lab\", \"map_summary\": {\"hazard_cells\": 2}}",
+        "pi": "cntAAjP0QV3tJ8",
+        "ri": "cinA3hWP6ecmly",
+        "rn": "cinA_m8jAsS8jdu",
+        "ty": 10004,
+        "ct": "20261107T074536,205729",
+        "lt": "20261107T074536,205729"
+      }
+    }
+  },
+  "finished_at": "2026-11-07T07:45:36.252651+00:00"
+}

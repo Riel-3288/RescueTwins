@@ -1,0 +1,28 @@
+{
+  "checked_at": "2026-11-07T07:35:04.758612+00:00",
+  "target": "http://127.0.0.1:7599/Mobius",
+  "result": "blocked_unsupported",
+  "scope": "compatibility probe, not a full announcement test",
+  "cse_id": "/Mobius4",
+  "supported_resource_types": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    9,
+    16,
+    23,
+    28,
+    29,
+    30
+  ],
+  "container_announced_type": 10003,
+  "create_probe": {
+    "http_status": 405,
+    "rsc": "4005",
+    "response": {
+      "m2m:dbg": "not allowed API call"
+    }
+  }
+}

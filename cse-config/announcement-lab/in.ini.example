@@ -1,0 +1,26 @@
+[basic.config]
+cseType = IN
+cseID = id-annc-lab-in
+cseName = annc-lab-in
+serviceProviderID = //acme.example.com
+adminID = CAdmin
+secret = CHANGE_ME_LOCAL_SECRET
+networkInterface = 127.0.0.1
+cseHost = 127.0.0.1
+httpPort = 8010
+databaseType = tinydb
+consoleType = simple
+consoleTheme = dark
+logLevel = info
+
+[cse.registration]
+allowedCSROriginators = /id-annc-lab-mn
+
+[http]
+enableManagementEndpoint = true
+
+[mqtt]
+enable = false
+
+[webui]
+enable = true

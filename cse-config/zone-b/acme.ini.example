@@ -1,0 +1,33 @@
+[basic.config]
+cseType = MN
+cseID = id-mn-zone-b
+cseName = mn-zone-b
+serviceProviderID = //acme.example.com
+adminID = CAdmin
+secret = CHANGE_ME_LOCAL_SECRET
+networkInterface = 0.0.0.0
+cseHost = host.docker.internal
+httpPort = 8002
+registrarCseID = Mobius4
+registrarCseName = Mobius
+registrarCseHost = 127.0.0.1
+registrarCsePort = 7599
+databaseType = tinydb
+consoleType = simple
+consoleTheme = dark
+logLevel = info
+
+[textui]
+startWithTUI = false
+
+[cse.registration]
+allowedCSROriginators = /Mobius4
+
+[cse.registrar]
+excludeCSRAttributes = spi,ici,dcse,csz
+
+[mqtt]
+enable = false
+
+[webui]
+enable = true
