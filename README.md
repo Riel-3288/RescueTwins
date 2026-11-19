@@ -25,14 +25,17 @@ robot simulations, and a digital-twin web application.
 - The AE and sensor containers for `node-01` have been created.
 - Basic access-control permissions for `node-01` have been configured.
 - Physical ESP32 sensor uploads and multi-device network integration are pending.
-- MN-CSE, Mobius IN-CSE, MQTT, and the digital-twin web application are pending.
+- A local MQTT/MEC integration prototype is available in [`mec-app/deploy/`](mec-app/deploy/README.md), including dual ACME MN-CSE tests, IN-CSE transit, MEC-IPE, and TLS.
+- The [sensor Dashboard](twin/README.md) includes a read-only Mobius integration.
+- The [RescueTwins MEC and simulation Dashboard](mec-app/deploy/README_RUN.md) includes a 50×30 two-drone experiment, an 80×40 LiveSwarm demo, and recorded mission playback. Both maps use zones A and B.
+- Deployment to the team MEC host, live CSE integration for MEC-IPE, and full MEC 021 handover still require end-to-end verification.
 
 ## Folder Ownership
 
 | Directory | Owner | Contents |
 |---|---|---|
 | `firmware/` | Sariel | ESP32 sensor node code|
-| `simulation/` | Sariel | 2D grid swarm simulation, live + offline run modes, evaluation |
+| `simulation/` | Sariel | 50x30 A/B drone simulation with independent MEC map-fusion client, evaluation |
 | `simulation/onem2m_adapter/` | Zihan | Agent AE adapter (register, post, notifications over HTTP) |
 | `simulation/results/` | Sariel | Evaluation CSVs and trajectory logs (optional) |
 | `mec-app/swarm/` | Sariel | Edge app logic: pheromone map, evaporation, task bidding, sanity checks |
@@ -53,3 +56,27 @@ Open a PowerShell terminal in the project root directory and run:
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 -m acmecse --base-directory .\acme-local
+```
+
+## MQTT and MEC Integration
+
+The [`mec-app/deploy` guide](mec-app/deploy/README.md) covers the telemetry contract,
+local Docker Compose setup, MEC Location/RNIS integration, factory scenario,
+TLS configuration, and shared-host deployment templates.
+
+From this repository root, run the integration tests with Python 3.13:
+
+```powershell
+cd mec-app/deploy
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-test.txt
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+The test suite starts temporary real MQTT and ACME CSE instances. MEC API inputs
+come from a local contract fixture. See the [deployment guide](mec-app/deploy/docs/deployment-guide.md)
+for integration boundaries and live deployment acceptance checks.
+
+## Independent MEC swarm app
+
+The 50x30 two-zone drone simulator now supports a separate HTTP map-fusion application. See [run and deployment guide](mec-app/deploy/README_RUN.md). This is locally verified; actual MEC-host deployment still needs a reachable host.
