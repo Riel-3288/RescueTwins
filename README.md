@@ -6,6 +6,8 @@ RescueTwin is an IoT and digital-twin project for emergency rescue scenarios.
 The project connects sensor nodes, a oneM2M platform, edge-processing applications,
 robot simulations, and a digital-twin web application.
 
+**[Read the RescueTwins project article](docs/rescuetwins-project.md)** for the system overview, simulation results, and demo.
+
 ## Project Structure
 
 | Directory | Purpose |
