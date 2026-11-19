@@ -1,0 +1,71 @@
+{
+  "started_at": "2026-11-19T14:57:14.102711Z",
+  "cse": {
+    "A": "http://10.70.80.241:8001/~/id-mn-zone-a/mn-zone-a",
+    "B": "http://10.70.80.241:8002/~/id-mn-zone-b/mn-zone-b"
+  },
+  "discovery": {
+    "drones_zone_A": [
+      "mn-zone-a/agent-01",
+      "mn-zone-a/agent-02"
+    ],
+    "robots_zone_A": [
+      "mn-zone-a/robot-01"
+    ],
+    "drones_zone_B": [
+      "mn-zone-b/agent-05",
+      "mn-zone-b/agent-01"
+    ],
+    "agent_groups_zone_A": [
+      "mn-zone-a/rescue-mec/grp-agents"
+    ],
+    "node_state_flexcontainers": [
+      "mn-zone-a/rescue-mec/node-01-temperature",
+      "mn-zone-a/rescue-mec/node-01-relativeHumidity",
+      "mn-zone-a/rescue-mec/node-01-smokeSensor",
+      "mn-zone-a/rescue-mec/node-01-motionSensor"
+    ]
+  },
+  "group_recall_zone_A": {
+    "command_id": "ada4a01b5d994f9ab18e13b59a65e59a",
+    "members": 3,
+    "created": 3
+  },
+  "notifications_received": {
+    "agent-01": 1,
+    "agent-02": 1,
+    "robot-01": 1,
+    "agent-05": 0
+  },
+  "handover": {
+    "agent_id": "agent-01",
+    "from_zone": "A",
+    "to_zone": "B",
+    "trigger": "factory_geofence",
+    "started_at": "2026-11-19T14:57:18.074385Z",
+    "mode": "application-layer-reregistration",
+    "steps": [
+      "target_ae_registered",
+      "target_acp_created",
+      "target_subscription_created",
+      "last_state_copied",
+      "group_and_subscription_switched"
+    ],
+    "ok": true,
+    "buffered_reports": 0,
+    "lost_reports": 0,
+    "procedure_ms": 549.2,
+    "interruption_ms": 749.3
+  },
+  "group_recall_zone_B_after_handover": {
+    "command_id": "56cb3646d4344a9a8077e2f0b03b9b31",
+    "members": 2,
+    "created": 2
+  },
+  "serving": {
+    "agent-01": "B",
+    "agent-02": "A",
+    "robot-01": "A",
+    "agent-05": "B"
+  }
+}
