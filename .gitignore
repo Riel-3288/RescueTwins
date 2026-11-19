@@ -25,3 +25,7 @@ secrets.cpp
 Thumbs.db
 .DS_Store
 acme-zone-a/
+
+# Generated runtime files and compiler caches
+runtime/
+node-compile-cache/

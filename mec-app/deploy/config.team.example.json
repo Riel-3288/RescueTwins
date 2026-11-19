@@ -10,22 +10,22 @@
   },
   "cse": {
     "A": {
-      "base_url": "http://10.70.80.245:8001/~/id-mn-zone-a/mn-zone-a",
+      "base_url": "http://team-cse.example.invalid:8001/~/id-mn-zone-a/mn-zone-a",
       "auth": "none",
       "timeout_s": 4
     },
     "B": {
-      "base_url": "http://10.70.80.245:8002/~/id-mn-zone-b/mn-zone-b",
+      "base_url": "http://team-cse.example.invalid:8002/~/id-mn-zone-b/mn-zone-b",
       "auth": "none",
       "timeout_s": 4
     },
     "IN": {
-      "base_url": "http://10.70.80.245:7599/Mobius",
+      "base_url": "http://team-cse.example.invalid:7599/Mobius",
       "auth": "none",
       "timeout_s": 4
     },
     "VIA_IN": {
-      "base_url": "http://10.70.80.245:7599/~/id-mn-zone-a/mn-zone-a",
+      "base_url": "http://team-cse.example.invalid:7599/~/id-mn-zone-a/mn-zone-a",
       "auth": "none",
       "timeout_s": 4,
       "originators": {
@@ -33,7 +33,7 @@
       }
     },
     "VIA_IN_B": {
-      "base_url": "http://10.70.80.245:7599/~/id-mn-zone-b/mn-zone-b",
+      "base_url": "http://team-cse.example.invalid:7599/~/id-mn-zone-b/mn-zone-b",
       "auth": "none",
       "timeout_s": 4
     }
@@ -63,18 +63,18 @@
     "origin_lon": 101.706
   },
   "mec": {
-    "location_url": "https://82.112.253.59/sbx42843tk/mep1/location/v3",
-    "rnis_url": "https://82.112.253.59/sbx42843tk/mep1/rni/v2",
-    "app_support_url": "https://82.112.253.59/sbx42843tk/mep1/mec_app_support/v2",
+    "location_url": "https://sandbox.example.invalid/YOUR_SANDBOX_ID/mep1/location/v3",
+    "rnis_url": "https://sandbox.example.invalid/YOUR_SANDBOX_ID/mep1/rni/v2",
+    "app_support_url": "https://sandbox.example.invalid/YOUR_SANDBOX_ID/mep1/mec_app_support/v2",
     "token_env": "MEC_TOKEN",
     "max_location_age_s": 30,
-    "service_mgmt_url": "https://82.112.253.59/sbx42843tk/mep1/mec_service_mgmt/v1",
-    "ams_url": "https://82.112.253.59/sbx42843tk/mep1/amsi/v1",
+    "service_mgmt_url": "https://sandbox.example.invalid/YOUR_SANDBOX_ID/mep1/mec_service_mgmt/v1",
+    "ams_url": "https://sandbox.example.invalid/YOUR_SANDBOX_ID/mep1/amsi/v1",
     "system_trust": true,
     "auth": "none",
     "app_instance_id": "",
-    "location_provider_app_instance_id": "298b2c0c-7efa-45d3-8b47-8ab3c009b845",
-    "location_service_id": "f8a0d2ab-9977-4d71-8c4f-354b4d59fb32"
+    "location_provider_app_instance_id": "YOUR_LOCATION_PROVIDER_APP_ID",
+    "location_service_id": "YOUR_LOCATION_SERVICE_ID"
   },
   "rescue": {
     "enabled": false,
@@ -112,7 +112,7 @@
   },
   "native_mqtt": {
     "A": {
-      "host": "10.70.80.245",
+      "host": "team-cse.example.invalid",
       "port": 1883,
       "username": "node-01",
       "password_env": "TEAM_NODE01_MQTT_PASSWORD",
@@ -124,7 +124,7 @@
       "allow_upload": true
     },
     "B": {
-      "host": "10.70.80.245",
+      "host": "team-cse.example.invalid",
       "port": 1883,
       "username": "zone-b-test",
       "password_env": "TEAM_ZONE_B_TEST_MQTT_PASSWORD",

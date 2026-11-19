@@ -1,3 +1,5 @@
+> For team connections, copy `config.team.example.json` to the ignored `config.team.local.json` and replace the example endpoints and IDs. The URLs in this guide are placeholders.
+
 > 2026-11-11 当前版本已改为 50×30、A/B 两区、drone-A/B，并增加独立 MEC swarm-fusion 服务。当前启动与部署以 [README_RUN.md](../README_RUN.md) 为准；下文早期三分区说明保留为历史记录。
 
 # 团队协作与联调
@@ -100,7 +102,7 @@ smoke_raw、co_raw 均使用非负有限 mV 数值，支持小数，不再使用
 
 ### 团队 oneM2M MQTT binding
 
-Broker 10.70.80.245:1883，当前无 TLS；node-01 账号的密码私下配置。MQTT username=node-01，AE originator=CNode01，目标 /id-mn-zone-a，三者不混用。每个连接自动生成唯一 Client ID。
+Broker team-cse.example.invalid:1883，当前无 TLS；node-01 账号的密码私下配置。MQTT username=node-01，AE originator=CNode01，目标 /id-mn-zone-a，三者不混用。每个连接自动生成唯一 Client ID。
 
 - 先订阅 /oneM2M/resp/CNode01/id-mn-zone-a/json，收到 SUBACK 后再发请求。
 - 请求发布到 /oneM2M/req/CNode01/id-mn-zone-a/json。
@@ -110,119 +112,36 @@ Broker 10.70.80.245:1883，当前无 TLS；node-01 账号的密码私下配置�
 先在 mec-app/deploy 目录预览文件，默认不发送：
 
 ```powershell
-.\.venv\Scripts\python.exe -m rescuetwin --config config.team.example.json native-import --zone A --file ..\..\simulation\node01_sample.jsonl
+.\.venv\Scripts\python.exe -m rescuetwin --config config.team.local.json native-import --zone A --file ..\..\simulation\node01_sample.jsonl
 ```
 
 需要上传时，在自己的终端私下设置 TEAM_NODE01_MQTT_PASSWORD，再在同一命令追加 `--send`。只允许该账号绑定的 node-01/A 传感器数据；独立 drone/MEC 身份不能冒用 CNode01。任一格式错误默认阻止整批；显式 `--skip-invalid` 才跳过不合格行。日志记录部分成功；再次 --send 会创建新 CIN，不声称全局去重。
 
 ### MEC 平台和 API
 
-Hosted 页面：https://82.112.253.59/ 。当前个人 Sandbox=sbx42843tk，MEP=mep1。2026-11-10 只读验证下表接口均返回成功；Hosted 运行不代表已经有 shared VM 的 SSH/Kubernetes 权限，目前没有可用 shared VM 凭据。
+Hosted 页面：https://sandbox.example.invalid/ 。示例里的 YOUR_SANDBOX_ID 和 mep1 请以自己的 Try-it 地址为准。2026-11-10 只读验证下表接口均返回成功；Hosted 运行不代表已经有 shared VM 的 SSH/Kubernetes 权限，目前没有可用 shared VM 凭据。
 
 | 用途 | 请求地址 | 当前用途 |
 |---|---|---|
-| MEC013 Location | GET https://82.112.253.59/sbx42843tk/mep1/location/v3/queries/users | 获取 UE 位置；支持 ?address=10.10.0.1 |
-| MEC012 RNIS | GET https://82.112.253.59/sbx42843tk/mep1/rni/v2/queries/rab_info | 获取 UE/cell/RAB 信息 |
-| MEC011 时间 | GET https://82.112.253.59/sbx42843tk/mep1/mec_app_support/v2/timing/current_time | 健康检查 |
-| MEC011 服务发现 | GET https://82.112.253.59/sbx42843tk/mep1/mec_service_mgmt/v1/services | 获取真实服务版本及 endpoint |
-| MEC021 AMS | https://82.112.253.59/sbx42843tk/mep1/amsi/v1 | 服务发现已公布；应用注册/迁移尚未验收 |
+| MEC013 Location | GET https://sandbox.example.invalid/YOUR_SANDBOX_ID/mep1/location/v3/queries/users | 获取 UE 位置；支持 ?address=10.10.0.1 |
+| MEC012 RNIS | GET https://sandbox.example.invalid/YOUR_SANDBOX_ID/mep1/rni/v2/queries/rab_info | 获取 UE/cell/RAB 信息 |
+| MEC011 时间 | GET https://sandbox.example.invalid/YOUR_SANDBOX_ID/mep1/mec_app_support/v2/timing/current_time | 健康检查 |
+| MEC011 服务发现 | GET https://sandbox.example.invalid/YOUR_SANDBOX_ID/mep1/mec_service_mgmt/v1/services | 获取真实服务版本及 endpoint |
+| MEC021 AMS | https://sandbox.example.invalid/YOUR_SANDBOX_ID/mep1/amsi/v1 | 服务发现已公布；应用注册/迁移尚未验收 |
 
 Location 的旧 v2 Try-it 地址此前返回404，以 v3 和服务发现公布的 endpoint 为准。接口请求当前使用 Accept: application/json，保持 HTTPS 证书验证；本次测试没有使用 Bearer token，也不推断其他平台无需认证。
 
 请求示例：
 
 ```http
-GET /sbx42843tk/mep1/location/v3/queries/users?address=10.10.0.1 HTTP/1.1
-Host: 82.112.253.59
+GET /YOUR_SANDBOX_ID/mep1/location/v3/queries/users?address=10.10.0.1 HTTP/1.1
+Host: sandbox.example.invalid
 Accept: application/json
 ```
 
-以下是本次实际列表响应中的第一条 UE，删去其他 UE 和附加字段，保留其值；这是抓取样例，不是固定坐标：
+Location responses expose UE addresses and coordinates under `userList.user`. RNIS responses expose radio information under `cellUserInfo`. Use Sandbox Try-it to inspect your own instance's payloads.
 
-```json
-{
-  "userList": {
-    "user": [
-      {
-        "address": "10.10.0.1",
-        "accessPointId": "4g-macro-cell-6",
-        "zoneId": "zone03",
-        "timeStamp": {
-          "nanoSeconds": 0,
-          "seconds": 1794324352
-        },
-        "locationInfo": {
-          "latitude": [
-            43.735054
-          ],
-          "longitude": [
-            7.422338
-          ],
-          "shape": 2
-        }
-      }
-    ]
-  }
-}
-```
-
-RNIS 响应节选：
-
-```json
-{
-  "cellUserInfo": [
-    {
-      "ecgi": {
-        "cellId": "6060606",
-        "plmn": {
-          "mcc": "001",
-          "mnc": "001"
-        }
-      },
-      "ueInfo": [
-        {
-          "associateId": [
-            {
-              "type": 1,
-              "value": "10.10.0.1"
-            }
-          ],
-          "erabInfo": [
-            {
-              "erabId": 243,
-              "erabQosParameters": {
-                "qci": 80
-              }
-            }
-          ]
-        },
-        {
-          "associateId": [
-            {
-              "type": 1,
-              "value": "10.1.0.1"
-            }
-          ],
-          "erabInfo": [
-            {
-              "erabId": 2,
-              "erabQosParameters": {
-                "qci": 80
-              }
-            }
-          ]
-        }
-      ]
-    }
-  ],
-  "timeStamp": {
-    "nanoSeconds": 0,
-    "seconds": 1794324352
-  }
-}
-```
-
-Location provider appInstanceId=298b2c0c-7efa-45d3-8b47-8ab3c009b845；serviceId=f8a0d2ab-9977-4d71-8c4f-354b4d59fb32。前者属于服务提供者，不是 RescueTwins consumer 应用 ID。UE 地址与 drone ID 尚未映射，Monaco 经纬度也不能直接当 simulation 网格坐标。回放功能目前不依赖 MEC 网络位置来执行路线。
+Location provider appInstanceId=YOUR_LOCATION_PROVIDER_APP_ID；serviceId=YOUR_LOCATION_SERVICE_ID。前者属于服务提供者，不是 RescueTwins consumer 应用 ID。UE 地址与 drone ID 尚未映射，Monaco 经纬度也不能直接当 simulation 网格坐标。回放功能目前不依赖 MEC 网络位置来执行路线。
 
 ### 仍未完成的联调
 

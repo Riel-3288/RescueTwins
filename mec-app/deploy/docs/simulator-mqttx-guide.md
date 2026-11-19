@@ -1,3 +1,5 @@
+> For team connections, copy `config.team.example.json` to the ignored `config.team.local.json` and replace the example endpoints and IDs. The URLs in this guide are placeholders.
+
 > 2026-11-11 当前版本已改为 50×30、A/B 两区、drone-A/B，并增加独立 MEC swarm-fusion 服务。当前启动与部署以 [README_RUN.md](../README_RUN.md) 为准；下文早期三分区说明保留为历史记录。
 
 # 本地火灾模拟器、Dashboard 与 MQTTX
@@ -28,7 +30,7 @@ powershell -ExecutionPolicy Bypass -File .\start-demo.ps1 -Mode Recorded
 
 团队接入仅使用 oneM2M MQTT binding，见后面的交接说明及 native-import。不要向团队 Broker 发布普通 rescuetwin topic，也不要为它启动 bridge/provision。
 
-以下 MQTTX 普通 topic 章节仅对应 LocalDemo/LocalCse 的旧隔离演示。其端口为 18883；团队 Broker 则是 10.70.80.245:1883、需要账号，并使用 /oneM2M 请求/响应。
+以下 MQTTX 普通 topic 章节仅对应 LocalDemo/LocalCse 的旧隔离演示。其端口为 18883；团队 Broker 则是 team-cse.example.invalid:1883、需要账号，并使用 /oneM2M 请求/响应。
 
 ## MQTTX 逐项配置
 
@@ -298,21 +300,21 @@ Open http://127.0.0.1:8765/#recorded. This starts the local dashboard without a 
 
 ### Team CSE access and independent identities
 
-`config.team.example.json` records the supplied endpoints (IP `10.70.80.245`; MN-A 8001, MN-B 8002, Mobius 7599) with explicit no-HTTP-auth configuration. It keeps the existing TLS production template unchanged. The team profile disables HTTP writes, provisioning and the raw MQTT-to-HTTP bridge. Explicit native-import --send permits only the configured node-01 sensor upload through oneM2M binding. Existing originators are used only in the two documented read-only checks.
+`config.team.example.json` uses placeholder endpoints (host `team-cse.example.invalid`; MN-A 8001, MN-B 8002, Mobius 7599) with explicit no-HTTP-auth configuration. It keeps the existing TLS production template unchanged. The team profile disables HTTP writes, provisioning and the raw MQTT-to-HTTP bridge. Explicit native-import --send permits only the configured node-01 sensor upload through oneM2M binding. Existing originators are used only in the two documented read-only checks.
 
 ```powershell
-.\.venv\Scripts\python.exe -X utf8 -m rescuetwin --config config.team.example.json check-team
+.\.venv\Scripts\python.exe -X utf8 -m rescuetwin --config config.team.local.json check-team
 ```
 
 This writes a local result to `runtime/team-check.json`, returns a failing exit code for incomplete checks, and sends only GET requests. On 2026-11-10, the Location check succeeded; both Mobius transit reads timed out from this computer. Direct MN-A/MN-B checks also timed out. Recheck current IP, same-LAN/VPN routing, service bind address, Windows firewall and running services with Zihan. His localhost verification is separate from connectivity on Selina's computer.
 
-The team broker uses **oneM2M MQTT binding** at `10.70.80.245:1883`. The `native_mqtt` section documents the two supplied accounts and password environment variable names; no passwords are stored. The local dashboard broker remains separate. It is not a bridge into those CSEs. Request/response topics must follow the supplied `/oneM2M/...` structure, with a unique MQTT Client ID and matching `rqi`/successful `rsc`. Independent drone/MEC AEs, their ACPs and a dedicated MQTT account/ACL must be agreed before enabling writes. Do not use the physical node's account for another application. No topic ACL isolation or TLS is asserted for the team's current broker.
+The team broker uses **oneM2M MQTT binding** at `team-cse.example.invalid:1883`. The `native_mqtt` section documents the two supplied accounts and password environment variable names; no passwords are stored. The local dashboard broker remains separate. It is not a bridge into those CSEs. Request/response topics must follow the supplied `/oneM2M/...` structure, with a unique MQTT Client ID and matching `rqi`/successful `rsc`. Independent drone/MEC AEs, their ACPs and a dedicated MQTT account/ACL must be agreed before enabling writes. Do not use the physical node's account for another application. No topic ACL isolation or TLS is asserted for the team's current broker.
 
 ### MEC endpoint and IDs
 
-Live service discovery and GET checks on 2026-11-10 confirmed Location at `https://82.112.253.59/sbx42843tk/mep1/location/v3/queries/users` (200); v2 returned 404. The verified v3 root is saved in the team profile. HTTPS validation remains enabled; `system_trust` uses OS trusted roots. Discovered addresses were `10.10.0.1`, `10.1.0.1`, `10.100.0.1`. No address is automatically mapped to a drone or to grid zone A/B/C.
+Live service discovery and GET checks on 2026-11-10 confirmed the configured Location endpoint, shown here as `https://sandbox.example.invalid/YOUR_SANDBOX_ID/mep1/location/v3/queries/users` (200); v2 returned 404. Copy the active v3 root from Try-it to the private team profile. HTTPS validation remains enabled; `system_trust` uses OS trusted roots. Discovered addresses were `10.10.0.1`, `10.1.0.1`, `10.100.0.1`. No address is automatically mapped to a drone or to grid zone A/B/C.
 
-`298b2c0c-7efa-45d3-8b47-8ab3c009b845` belongs to the **Location provider**; `f8a0d2ab-9977-4d71-8c4f-354b4d59fb32` is its service ID. The RescueTwins consumer `app_instance_id` remains empty. Obtain it by creating your own application instance. MEC021 registration, externally reachable callback, two-instance migration and live CSE writes remain pending. JSON upload/replay itself needs no public callback.
+`YOUR_LOCATION_PROVIDER_APP_ID` belongs to the **Location provider**; `YOUR_LOCATION_SERVICE_ID` is its service ID. The RescueTwins consumer `app_instance_id` remains empty. Obtain it by creating your own application instance. MEC021 registration, externally reachable callback, two-instance migration and live CSE writes remain pending. JSON upload/replay itself needs no public callback.
 
 Still agree with the team: zone C's CSE routing, mV calibration or unit-specific thresholds, per-drone AE/ACP and broker permissions, UE-to-agent mapping and a coordinate transform, and the real robot's task/feedback interface. Keep these explicit; changing only a zone label does not implement handover.
 

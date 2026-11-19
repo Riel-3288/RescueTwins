@@ -87,6 +87,10 @@ Broker 地址、账号和读取身份填写在 `mec-app/deploy/config.mqtt-read.
 
 MQTT 读取是独立命令，读取结果目前不会自动进入 Simulation 或 Dashboard。
 
+## Private team settings
+
+Copy `config.team.example.json` to `config.team.local.json` and replace the placeholder CSE, broker and Sandbox endpoints and IDs with your own values. The local file is ignored by Git. Pass it via `--config config.team.local.json` when running `check-team` or `native-import`. The Windows `Recorded` launcher uses it automatically if present; the example is sufficient for offline playback. Keep passwords and tokens in environment variables.
+
 ## Ubuntu 运行
 
 在项目根目录创建环境并安装依赖，需要已安装 Python 3.13 和 venv：

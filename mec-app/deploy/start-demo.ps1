@@ -53,7 +53,11 @@ try {
         if ($Mode -eq 'LiveSwarm') {
             $demoArguments += @('--live-swarm','--drone-count',"$DroneCount")
         } elseif ($Mode -eq 'Recorded') {
-            $demoArguments += @('--config',(Join-Path $PSScriptRoot 'config.team.example.json'),'--recorded-only')
+            $teamConfig = Join-Path $PSScriptRoot 'config.team.local.json'
+            if (-not (Test-Path -LiteralPath $teamConfig -PathType Leaf)) {
+                $teamConfig = Join-Path $PSScriptRoot 'config.team.example.json'
+            }
+            $demoArguments += @('--config',$teamConfig,'--recorded-only')
         } else {
             if (-not $ExistingBroker) { $demoArguments += '--local-broker' }
             if ($Mode -eq 'LocalCse') { $demoArguments += '--with-cse' }
