@@ -39,7 +39,7 @@ const char* ORIGIN   = "CNode01";
 const char* RVI      = "4";
 #endif
 
-// ============ oneM2M MQTT CONFIG ============   // [MQTT] values from Zihan
+// ============ oneM2M MQTT CONFIG ============   
 #if USE_MQTT
 const char*    MQTT_HOST   = "<MQTT_BROKER_IP>";
 const uint16_t MQTT_PORT   = 1883;
@@ -77,7 +77,7 @@ struct Readings {
 // ---------- helpers ----------
 String utcNow() {
   time_t now = time(nullptr);
-  if (now < 1700000000) return "";             // clock not synced yet
+  if (now < 1700000000) return "";             
   struct tm t;
   gmtime_r(&now, &t);
   char buf[25];
