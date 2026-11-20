@@ -55,6 +55,7 @@ class Demo:
         self.received_rows = deque(maxlen=10000)
         self.received = self.rejected = self.sent = self.acked = self.failed = self.cse_acks = 0
         self.connected, self.last_received, self.last_error = False, None, ""
+        self.local_samples, self.last_local_sample = 0, None
         self.worker = None
         self.publisher = None
         self.outgoing = queue.Queue(maxsize=4096)
@@ -128,12 +129,19 @@ class Demo:
             with self.lock:
                 self.rejected += 1
 
-    def accept_reading(self,value,topic):
-        self.received+=1;self.last_received=utcnow()
+    def accept_reading(self, value, topic, *, via_mqtt=True):
+        received_at = utcnow()
+        if via_mqtt:
+            self.received += 1
+            self.last_received = received_at
+        else:
+            self.local_samples += 1
+            self.last_local_sample = received_at
         key=(value['device_id'],value['source'],value['sensor_type'])
         if key not in self.latest or utc_timestamp(value['observed_at'])>=utc_timestamp(self.latest[key]['observed_at']):self.latest[key]=value
         self.rescue.ingest(value)
-        self.messages.appendleft(dict(topic=topic,reading=value,received_at=self.last_received));self.received_rows.append(value)
+        self.messages.appendleft(dict(topic=topic, reading=value, received_at=received_at))
+        self.received_rows.append(value)
 
     def start(self,live_only=False):
         self.live_only=live_only
@@ -175,6 +183,11 @@ class Demo:
     def run(self):
         deadline = time.monotonic()
         last_publish = 0
+        # Local model sensors are independent of the MQTT device registrations.
+        local_devices = {
+            device: {'zones': [self.factory.spec.zone(x)]}
+            for device, (x, _) in self.factory.sensor_positions.items()
+        }
         while not self.stop.is_set():
             now = time.monotonic()
             if now < deadline:
@@ -193,17 +206,23 @@ class Demo:
                 positions = [{"agent_id": a["id"], "x_m": (a["x"] + 0.5) * self.factory.cell_m,
                               "y_m": (a["y"] + 0.5) * self.factory.cell_m, "zone_id": a["zone"],
                               "source": "simulation", "observed_at": utcnow()}
-                             for a in self.factory.agents] if due else []
+                             for a in self.factory.agents] if due and not self.live_only else []
             if due:
                 last_publish = now
+            if self.live_only:
+                from_file = self.file_rows is not None
+                devices = self.config['devices'] if from_file else local_devices
+                for reading in readings:
+                    try:
+                        validate_reading(reading, devices)
+                        with self.lock:
+                            self.accept_reading(reading, 'recorded-file' if from_file else 'local-simulation',
+                                                via_mqtt=False)
+                    except (ValueError, KeyError, TypeError) as exc:
+                        LOG.warning('Rejected local sensor sample: %s', exc)
+                continue
             for reading in readings:
                 backlog = self.bridge.stats()['counts'].get('pending', 0) if self.bridge else 0
-                if self.live_only:
-                    try:
-                        validate_reading(reading,self.config['devices'])
-                        with self.lock:self.accept_reading(reading,'recorded-file' if self.file_rows is not None else 'local-simulation')
-                    except (ValueError,KeyError,TypeError):self.rejected+=1
-                    continue
                 if self.file_rows is not None or self.telemetry_gate.accept(reading, backlog):
                     self.publish(f"rescuetwin/{reading['zone_id']}/{reading['device_id']}/{reading['sensor_type']}", reading)
             for position in positions:
@@ -220,6 +239,7 @@ class Demo:
             value["mec_grid_context"] = self.mec_context
             value['sensor_input'] = dict(mode='recorded-file' if self.file_rows is not None else 'generated',
                 file=self.config.get('sensor_file'), rejected=self.file_report['rejected'] if self.file_report else [],
+                local_samples=self.local_samples, last_local_sample=self.last_local_sample,
                 note='File input preserves source/time; stale records do not assert an online physical sensor.')
             value["mqtt"] = {"connected": self.connected, "host": self.config["mqtt"]["host"],
                              "port": self.config["mqtt"]["port"], "sent": self.sent, "puback": self.acked,
@@ -480,8 +500,8 @@ def main():
     parser.add_argument("--with-cse", action="store_true", help="Launch isolated local ACME IN/A/B and bridge")
     parser.add_argument("--bridge", action="store_true", help="Connect bridge to CSE endpoints already running in config")
     from .__main__ import DEFAULT_SAMPLES
-    parser.add_argument('--sensor-file',type=Path,default=DEFAULT_SAMPLES)
-    parser.add_argument('--generated-sensors',action='store_true',help='Explicit opt-in to illustrative generated sensor readings')
+    parser.add_argument('--sensor-file', type=Path, help='Load recorded sensor readings once')
+    parser.add_argument('--generated-sensors', action='store_true', help='Use local model readings (the LiveSwarm default)')
     args = parser.parse_args()
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
     cfg = copy.deepcopy(load_config(args.config))
@@ -493,8 +513,10 @@ def main():
         parser.error("--recorded-only does not start MQTT or CSE components")
     if (args.bridge or args.with_cse) and not cfg.get("allow_cse_writes", True):
         parser.error("Team profile is read-only; start without --bridge/--with-cse for offline review")
-    if not args.generated_sensors:
-        cfg['sensor_file'] = str(args.sensor_file.resolve())
+    if args.generated_sensors or (args.live_swarm and args.sensor_file is None):
+        cfg.pop('sensor_file', None)
+    else:
+        cfg['sensor_file'] = str((args.sensor_file or DEFAULT_SAMPLES).resolve())
     runtime = ROOT / "runtime" / "demo"
     runtime.mkdir(parents=True, exist_ok=True)
     cfg["state_file"] = str(runtime / "bridge.sqlite")
@@ -526,12 +548,13 @@ def main():
         server = make_server(demo, args.port, args.host)
         print(f"Dashboard: http://127.0.0.1:{args.port}", flush=True)
         if args.live_swarm:
-            print("Live swarm: eight configurable drones; Fusion map sharing and autonomous exploration.",flush=True)
+            source = 'recorded file' if demo.file_rows is not None else 'live simulation'
+            print(f"Live swarm: {len(demo.factory.agents)} drones. Sensor input: {source}.", flush=True)
         elif args.recorded_only:
             print("Recorded Mission: offline files; no MQTT broker, bridge, or CSE writes. Open /#recorded.", flush=True)
         else:
             print(f"Local demo MQTT: mqtt://{cfg['mqtt']['host']}:{cfg['mqtt']['port']} (isolated example)", flush=True)
-        print("Ctrl+C stops this demo. Sensor input: recorded file once (unless --generated-sensors was explicitly selected).", flush=True)
+        print("Ctrl+C stops this demo.", flush=True)
         signal.signal(signal.SIGINT, lambda *args: (_ for _ in ()).throw(KeyboardInterrupt()))
         server.serve_forever(poll_interval=0.25)
     finally:

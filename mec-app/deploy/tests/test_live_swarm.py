@@ -1,5 +1,8 @@
 import json
+import subprocess
+import sys
 import threading
+import time
 from pathlib import Path
 import pytest
 import requests
@@ -79,3 +82,54 @@ def test_live_local_inspection_feedback_needs_no_broker(tmp_path):
         assert any(t['status']=='completed' for t in demo.rescue.tasks)
         assert not demo.connected and not demo.factory.swarm_error
     finally:demo.close()
+
+
+def test_live_dashboard_samples_current_sensor_values_by_default(tmp_path):
+    from conftest import free_port
+
+    root = Path(__file__).resolve().parents[1]
+    port = free_port()
+    url = f'http://127.0.0.1:{port}'
+    # Use the same CLI and team profile as the Dashboard container. Isolate its database.
+    launch = 'from pathlib import Path; import sys; from rescuetwin import demo; demo.ROOT = Path(sys.argv.pop(1)); demo.main()'
+    process = subprocess.Popen([
+        sys.executable, '-c', launch, str(tmp_path), '--live-swarm', '--drone-count', '2',
+        '--config', str(root / 'config.team.example.json'), '--port', str(port),
+    ], cwd=root)
+
+    def wait_for_state(predicate):
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            assert process.poll() is None, 'Dashboard stopped unexpectedly'
+            try:
+                response = requests.get(url + '/api/state', timeout=2)
+                response.raise_for_status()
+                state = response.json()
+                if predicate(state):
+                    return state
+            except requests.RequestException:
+                pass
+            time.sleep(0.1)
+        pytest.fail('Dashboard did not report the expected sensor state')
+
+    def node_readings(state):
+        return {r['sensor_type']: r for r in state['readings'] if r['device_id'] == 'node-01'}
+
+    try:
+        before = wait_for_state(lambda state: len(state['readings']) == 18)
+        baseline = node_readings(before)
+        assert {r['source'] for r in before['readings']} == {'simulation'}
+        assert before['sensor_input']['mode'] == 'generated'
+        sensor = next(s for s in before['sensors'] if s['id'] == 'node-01')
+        response = requests.post(url + '/api/control', json={'action': 'ignite', 'x': sensor['x'], 'y': sensor['y']}, timeout=5)
+        response.raise_for_status()
+        after = wait_for_state(lambda state: node_readings(state)['temperature']['value'] > baseline['temperature']['value'])
+        readings = node_readings(after)
+        assert readings['smoke_raw']['value'] > baseline['smoke_raw']['value']
+        assert readings['temperature']['observed_at'] > baseline['temperature']['observed_at']
+        assert after['sensor_input']['local_samples'] > before['sensor_input']['local_samples']
+        assert after['mqtt']['received'] == 0 and not after['mqtt']['connected']
+        assert {m['topic'] for m in after['messages']} == {'local-simulation'}
+    finally:
+        process.terminate()
+        process.wait(timeout=10)
