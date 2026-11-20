@@ -14,7 +14,10 @@ let goalDirty=false,commandActive=false,toastTimer,devicesKey='';
 function toast(text){$('toast').textContent=text;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),3500);}
 function badge(id,text,good){$(id).textContent=text;$(id).className=`pill ${good?'good':'bad'}`;}
 function timeText(value){return value?String(value).replace('T',' ').replace(/\.\d+Z$/,'Z'):'—';}
-function topicFor(reading){return `rescuetwin/${reading.zone_id}/${reading.device_id}/${reading.sensor_type}`;}
+function topicFor(reading){
+  if(state.live_mode)return state.sensor_input.mode==='recorded-file'?'recorded-file':'local-simulation';
+  return `rescuetwin/${reading.zone_id}/${reading.device_id}/${reading.sensor_type}`;
+}
 function getFilters(){return Object.fromEntries(Object.entries(filterIds).map(([key,id])=>[key,$(id).value]));}
 function emptyRow(columns,message){return `<tr><td colspan="${columns}" class="empty-cell">${esc(message)}</td></tr>`;}
 function statusPill(status){return `<span class="pill ${status==='blocked'?'bad':status==='arrived'?'good':'subtle'}">${esc(statusLabels[status]||status)}</span>`;}
@@ -90,8 +93,12 @@ function renderOverview(){
   $('factoryMap').style.aspectRatio=`${state.width}/${state.height}`;
   renderRescue();
   $('fireCount').textContent=state.metrics.fire_cells;$('hazardCount').textContent=`Hazard cells: ${state.metrics.hazard_cells}`;$('peakTemp').textContent=state.metrics.peak_temperature.toFixed(1);
-  $('mqttStatTitle').textContent=state.live_mode?'Sensor Records Loaded':'MQTT Messages Received';
-  $('mqttCount').textContent=state.mqtt.received.toLocaleString();$('mqttSummary').textContent=state.live_mode?'Recorded input; original timestamps retained':serviceOnline?`PUBACK ${state.mqtt.puback} · Rejected ${state.mqtt.rejected}`:'Page updates have stopped';
+  const recorded=state.sensor_input.mode==='recorded-file';
+  $('mqttStatTitle').textContent=state.live_mode?(recorded?'Sensor Records Loaded':'Simulated Sensor Samples'):'MQTT Messages Received';
+  $('mqttCount').textContent=(state.live_mode?state.sensor_input.local_samples:state.mqtt.received).toLocaleString();
+  $('mqttSummary').textContent=!serviceOnline?'Page updates have stopped':state.live_mode
+    ?(recorded?'Recorded input · original timestamps retained':'Sampled from the factory map every second')
+    :`PUBACK ${state.mqtt.puback} · Rejected ${state.mqtt.rejected}`;
   $('storedCount').textContent=state.cse.enabled?(state.cse.counts.delivered||0).toLocaleString():'—';
   $('cseSummary').textContent=state.cse.enabled?`Pending ${state.cse.counts.pending||0} · Quarantined ${state.cse.counts.quarantined||0}`:'CSE bridge not enabled';
   badge('brokerBadge',!serviceOnline?'Unknown':state.live_mode?'Not used':state.mqtt.connected?'Connected':'Disconnected',serviceOnline&&state.mqtt.connected);
@@ -131,19 +138,25 @@ function inspectPayload(message){
 
 function renderTelemetry(){
   const now=Date.now(),readings=state.readings,filters=getFilters();
+  const recorded=state.sensor_input.mode==='recorded-file';
+  const feed=recorded?'Recorded file':'Factory simulation';
   const devices=[...new Set(readings.map(r=>r.device_id))].sort(),key=devices.join(',');
   if(key!==devicesKey){const previous=$('filterDevice').value;$('filterDevice').innerHTML='<option value="">All devices</option>'+devices.map(d=>`<option>${esc(d)}</option>`).join('');$('filterDevice').value=devices.includes(previous)?previous:'';devicesKey=key;}
   $('deviceCount').textContent=devices.length;$('readingCount').textContent=readings.length;
   $('unhealthyCount').textContent=readings.filter(r=>r.quality!=='valid'||freshness(r,now)!=='fresh').length;
-  $('sensorBroker').textContent=!serviceOnline?'Unknown':state.live_mode?'Local file / model':state.mqtt.connected?'Connected':'Offline';
-  $('sensorBroker').classList.add('status-word');$('lastReceived').textContent=`Last received: ${timeText(state.mqtt.last_received)}`;
+  $('sensorFeed').textContent=state.live_mode?feed:'rescuetwin/#';
+  $('telemetryEyebrow').textContent=state.live_mode?(recorded?'OBSERVABILITY / RECORDED TELEMETRY':'OBSERVABILITY / SIMULATED TELEMETRY'):'OBSERVABILITY / MQTT TELEMETRY';
+  $('sensorStatusLabel').textContent=state.live_mode?'Sensor Feed':'Broker Status';
+  $('sensorBroker').textContent=!serviceOnline?'Unknown':state.live_mode?feed:state.mqtt.connected?'Connected':'Offline';
+  $('sensorBroker').classList.add('status-word');
+  $('lastReceived').textContent=state.live_mode?`Last sample: ${timeText(state.sensor_input.last_local_sample)}`:`Last received: ${timeText(state.mqtt.last_received)}`;
   filteredReadings=readings.filter(r=>matchesReading(r,filters,now)).sort((a,b)=>(a.device_id+a.source+a.sensor_type).localeCompare(b.device_id+b.source+b.sensor_type));
   $('filterCount').textContent=`${filteredReadings.length} of ${readings.length} latest readings`;
   $('sensorRows').innerHTML=filteredReadings.map((r,i)=>{
     const age=freshness(r,now),labels={fresh:'Fresh',stale:'Stale',future:'Future timestamp',unknown:'Unknown'};
     const value=r.quality==='invalid'?'—':typeof r.value==='boolean'?String(r.value):r.value;
     return `<tr><td>${esc(r.device_id)}<small>Zone ${esc(r.zone_id)}</small></td><td>${esc(r.sensor_type)}</td><td class="reading-value">${esc(value)} <small>${esc(r.unit)}</small></td><td><span class="source-tag ${r.source==='physical'?'physical':''}">${esc(r.source)}</span></td><td><span class="pill ${r.quality==='valid'?'good':'bad'}">${esc(r.quality)}</span></td><td><span class="pill ${age==='fresh'?'subtle':'bad'}">${labels[age]}</span></td><td><time>${esc(timeText(r.observed_at))}</time></td><td><button class="row-action" data-reading="${i}" aria-label="Inspect ${esc(r.device_id)} ${esc(r.sensor_type)} ${esc(r.source)}">Inspect ↗</button></td></tr>`;
-  }).join('')||emptyRow(8,'No readings match these filters. Try clearing filters or check the MQTT connection.');
+  }).join('')||emptyRow(8,state.live_mode?'No readings match these filters. Try clearing filters.':'No readings match these filters. Try clearing filters or check the MQTT connection.');
   visibleMessages=buffer.filtered(filters,now).slice(0,100);
   $('bufferSummary').textContent=`${visibleMessages.length} matching messages · ${buffer.entries.length}/500 buffered in this browser${buffer.paused?' · Log paused':''}`;
   $('messages').innerHTML=visibleMessages.map((m,i)=>`<button class="message message-button" data-message="${i}"><code>${esc(m.topic)}</code><span><time>${esc(timeText(m.received_at))}</time><strong>${esc(m.reading.value)} ${esc(m.reading.unit)}</strong><span class="message-source">${esc(m.reading.source)} · ${esc(m.reading.quality)}</span></span></button>`).join('')||'<p class="empty">No buffered messages match. Latest readings remain available above.</p>';
@@ -186,9 +199,10 @@ async function poll(){
   try{
     const response=await fetch('/api/state',{signal:AbortSignal.timeout(5000)});if(!response.ok)throw new Error('API unavailable');
     const next=await response.json();
-    if(next.mqtt.received<lastReceivedCount){buffer.clear();selectedPayload=null;}
+    const receivedCount=next.live_mode?next.sensor_input.local_samples:next.mqtt.received;
+    if(receivedCount<lastReceivedCount){buffer.clear();selectedPayload=null;}
     if(scene&&state&&[state.width,state.height,state.cell_m,state.zone_x,state.agents.length].join(',')!==[next.width,next.height,next.cell_m,next.zone_x,next.agents.length].join(',')){scene.dispose();scene=null;}
-    lastReceivedCount=next.mqtt.received;state=next;buffer.ingest(state.messages);serviceOnline=true;badge('apiStatus','● Service online',true);render();
+    lastReceivedCount=receivedCount;state=next;buffer.ingest(state.messages);serviceOnline=true;badge('apiStatus','● Service online',true);render();
   }catch{serviceOnline=false;badge('apiStatus','Service offline',false);render();}finally{requestActive=false;}
 }
 
